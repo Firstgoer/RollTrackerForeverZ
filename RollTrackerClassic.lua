@@ -946,6 +946,8 @@ function RTC.Init()
     initHyperlink(RollTrackerRollText)
     initHyperlink(RollTrackerForeverZLootFrame_MessageFrame)
     RTC.OptionsUpdate()
+    -- tabs and resize grips are created here, after the skin was applied
+    RTC.LayerForeverSkin()
 end
 
 local lastCountDown
@@ -1740,7 +1742,7 @@ end
 local function TitleIconButton(parent, texture, tooltip, onClick)
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(16, 16)
-    button:SetFrameLevel(parent:GetFrameLevel() + 20)
+    button.isForeverChrome = true
     button:SetNormalTexture(texture)
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     button:SetScript("OnClick", onClick)
@@ -1751,6 +1753,57 @@ local function TitleIconButton(parent, texture, tooltip, onClick)
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
     return button
+end
+
+local function SetLevelTree(frame, level)
+    frame:SetFrameLevel(level)
+    for _, child in ipairs({frame:GetChildren()}) do
+        SetLevelTree(child, level + 1)
+    end
+end
+
+-- The panel template pins its border (NineSlice, level 500) and title bar (510)
+-- to absolute frame levels, which drew them over the window content and hid the
+-- close/settings buttons. Put everything on explicit levels relative to the window.
+function RTC.LayerForeverSkin()
+    local self = RollTrackerClassicMainWindow
+    local panel = self.ForeverPanel
+    if not panel then return end
+    local base = self:GetFrameLevel()
+
+    panel:SetFrameLevel(base)
+    if panel.Bg then panel.Bg:SetFrameLevel(base) end
+    if panel.NineSlice then panel.NineSlice:SetFrameLevel(base + 1) end
+
+    for _, child in ipairs({self:GetChildren()}) do
+        if child ~= panel and not child.isForeverChrome then
+            SetLevelTree(child, base + 3)
+        end
+    end
+
+    if panel.TitleContainer then panel.TitleContainer:SetFrameLevel(base + 8) end
+    for _, button in ipairs(self.ForeverChrome) do
+        button:SetFrameLevel(base + 10)
+    end
+end
+
+-- Swap the legacy UIPanelScrollFrameTemplate arrows/slider for the modern thin scroll bar
+local hiddenParent
+local function ModernizeScrollFrame(scrollFrame)
+    if not (ScrollUtil and ScrollUtil.InitScrollFrameWithScrollBar) then return end
+    if not hiddenParent then
+        hiddenParent = CreateFrame("Frame")
+        hiddenParent:Hide()
+    end
+    if scrollFrame.ScrollBar then scrollFrame.ScrollBar:SetParent(hiddenParent) end
+
+    local bar = CreateFrame("EventFrame", nil, scrollFrame, "MinimalScrollBar")
+    bar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 8, 0)
+    bar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 8, 0)
+    bar:SetHideIfUnscrollable(true)
+    ScrollUtil.InitScrollFrameWithScrollBar(scrollFrame, bar)
+    bar:Update()
+    scrollFrame.ModernScrollBar = bar
 end
 
 function RTC.ApplyForeverSkin(self)
@@ -1765,8 +1818,9 @@ function RTC.ApplyForeverSkin(self)
 
     local panel = CreateFrame("Frame", nil, self, "DefaultPanelFlatTemplate")
     panel:SetAllPoints()
-    panel:SetFrameLevel(self:GetFrameLevel())
+    panel.isForeverChrome = true
     self.ForeverPanel = panel
+    self.ForeverChrome = {}
     self:SetClampedToScreen(true)
 
     -- title text inside the panel's title bar
@@ -1775,16 +1829,16 @@ function RTC.ApplyForeverSkin(self)
     title:SetDrawLayer("OVERLAY")
     title:ClearAllPoints()
     title:SetPoint("TOP", panel.TitleContainer, "TOP", 0, -5)
-    title:SetPoint("LEFT", panel.TitleContainer, "LEFT", -24, 0)
+    title:SetPoint("LEFT", panel.TitleContainer, "LEFT", -20, 0)
     title:SetPoint("RIGHT", panel.TitleContainer, "RIGHT", -30, 0)
     title:SetJustifyH("LEFT")
     title:SetWordWrap(false)
 
     -- modern close button
     local close = CreateFrame("Button", nil, self, "UIPanelCloseButtonDefaultAnchors")
-    close:SetFrameLevel(panel:GetFrameLevel() + 20)
     close:SetScript("OnClick", function() RTC.BtnClose() end)
-    self.ForeverCloseButton = close
+    close.isForeverChrome = true
+    tinsert(self.ForeverChrome, close)
 
     -- replace the old header buttons with flat icon buttons in the title bar
     RollTrackerClassicMainWindowCloseButton:Hide()
@@ -1794,12 +1848,18 @@ function RTC.ApplyForeverSkin(self)
     local settings = TitleIconButton(panel, "Interface\\Buttons\\UI-OptionsButton",
                                      function() return L["BtnConfig"] end,
                                      function() RTC.BtnSettings() end)
-    settings:SetPoint("RIGHT", close, "LEFT", 0, 0)
+    settings:SetPoint("RIGHT", close, "LEFT", 0, -1)
+    tinsert(self.ForeverChrome, settings)
 
     local loot = TitleIconButton(panel, RTC.IconLoot,
                                  function() return L["BtnLootRolls"] end,
                                  function() RTC.LootHistoryShow() end)
     loot:SetPoint("RIGHT", settings, "LEFT", -2, 0)
+    tinsert(self.ForeverChrome, loot)
+
+    ModernizeScrollFrame(RollTrackerClassicFrameRollScrollFrame)
+
+    RTC.LayerForeverSkin()
 end
 
 -- Addon compartment (the addon button list under the minimap calendar)
