@@ -2097,7 +2097,7 @@ function RTC.UpdateForeverRollList()
         RollTrackerClassicFrameStatusText:SetText(string.format(L["TxtRolled"], rolled))
     end
     list.Waiting.players = waiting
-    if #waiting > 0 then
+    if #waiting > 0 and not RTC.CountdownShown then
         list.Waiting:SetText(string.format(L["TxtWaiting"], #waiting))
         list.Waiting:Show()
     else
@@ -2355,7 +2355,7 @@ local function UpdateTimerBar()
             RTC.CountdownTotal = nil
             timer:Hide()
             RollTrackerClassicFrameStatusText:Show()
-            list.Waiting:SetAlpha(1)
+            RTC.UpdateForeverRollList() -- brings "N waiting" back
         end
         return
     end
@@ -2363,7 +2363,20 @@ local function UpdateTimerBar()
         RTC.CountdownShown = true
         timer:Show()
         RollTrackerClassicFrameStatusText:Hide()
-        list.Waiting:SetAlpha(0)
+        list.Waiting:Hide()
+        timer.clearShown = nil
+    end
+    -- the bar ends before the clear/undo button instead of covering it
+    local clearShown = list.HeaderClear:IsShown()
+    if timer.clearShown ~= clearShown then
+        timer.clearShown = clearShown
+        timer:ClearAllPoints()
+        timer:SetPoint("LEFT", list.Header, "LEFT", -2, 1)
+        if clearShown then
+            timer:SetPoint("RIGHT", list.HeaderClear, "LEFT", -6, 1)
+        else
+            timer:SetPoint("RIGHT", list.Header, "RIGHT", 2, 1)
+        end
     end
     local left = math.max(0, RTC.Countdown - GetTime())
     local pct = math.min(1, left / RTC.CountdownTotal)
@@ -2394,7 +2407,10 @@ local function BuildTimerBar(list)
     timer.Border = timer:CreateTexture(nil, "OVERLAY")
     timer.Border:SetAtlas("lootroll-timer-border")
     timer.Border:SetAllPoints()
-    timer.Text = timer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- outlined white digits stay readable over both the yellow fill and the dark track
+    timer.Text = timer:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+    timer.Text:SetShadowOffset(1, -1)
+    timer.Text:SetShadowColor(0, 0, 0, 1)
     timer.Text:SetPoint("CENTER", 0, 1)
     timer:Hide()
     list.Timer = timer
