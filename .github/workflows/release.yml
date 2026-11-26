@@ -1,0 +1,27 @@
+name: Package and release
+
+# Push a tag to publish:
+#   v2.2.0-alpha1  -> CurseForge "alpha"
+#   v2.2.0-beta1   -> CurseForge "beta"
+#   v2.2.0         -> CurseForge "release"
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: BigWigsMods/packager@v2
+        with:
+          args: -g forever

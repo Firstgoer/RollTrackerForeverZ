@@ -1,0 +1,17 @@
+package-as: RollTrackerForeverZ
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGES.txt
+  markup-type: plain
+
+ignore:
+  - README.md
+  - .github
+  - .gitignore
+  - Lib/LibStub/tests
+  # classic flavors are not shipped in the WoW: Forever package
+  - RollTrackerForeverZ_Vanilla.toc
+  - RollTrackerForeverZ_Mists.toc
+  - RollTrackerForeverZ_Cata.toc
