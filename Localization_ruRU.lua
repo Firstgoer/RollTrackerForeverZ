@@ -101,6 +101,7 @@ RTC.Locales.ruRU = {
     ["CboxAutoCountdownWithItem"] = "Запускать отсчёт, если указан предмет",
     ["CboxMainAndOffSpecMode"] = "Режим основная/вторая спек. ('/roll' и '/roll 99')",
     ["CboxShowNotRolled"] = "Показывать кнопку [Не бросили]",
+    ["CboxAnnounceLeaderOnly"] = "В группе показывать [Объявить] и меню розыгрыша только лидеру и помощникам",
     ["CboxAutoLootRolls"] = "Открывать «Розыгрыш добычи» автоматически",
     ["CboxAutoCloseLootRolls"] = "Закрывать «Розыгрыш добычи», когда все сделали выбор",
     ["CboxClearOnStart"] = "Очищать, когда кто-то начинает новый розыгрыш",

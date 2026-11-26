@@ -426,6 +426,7 @@ function RTC.OptionsUpdate()
         RTC.Tool.SelectTab(RollTrackerClassicMainWindow, 1)
         RTC.Tool.TabHide(RollTrackerClassicMainWindow)
     end
+    if RTC.PlaceForeverResizeHandle then RTC.PlaceForeverResizeHandle() end
 end
 
 local function RTCO_CheckBox(Var, Init)
@@ -487,6 +488,7 @@ function RTC.OptionsInit()
     RTC.Options.AddSpace()
     RTCO_CheckBox("MainAndOffSpecMode", false)
     RTCO_CheckBox("ShowNotRolled", true)
+    RTCO_CheckBox("AnnounceLeaderOnly", false)
     RTC.Options.AddSpace()
     RTCO_CheckBox("ClearOnStart", false)
     RTCO_CheckBox("OpenOnStart", false)
@@ -1820,7 +1822,6 @@ end
 -- WoW: Forever roll list, inset panels and action bar
 local ROW_HEIGHT, HEADER_HEIGHT = 20, 16
 local BUTTON_HEIGHT, GAP = 22, 2
-local NARROW_ROW = 200
 
 local function ClassRGB(class)
     local c = class and RAID_CLASS_COLORS[class]
@@ -1843,6 +1844,7 @@ local function InitRollRow(row, d)
     row.Header:SetShown(isHeader)
     row.Roll:SetShown(not isHeader)
     row.Name:SetShown(not isHeader)
+    row.Rank:SetShown(not isHeader)
     row.Info:Hide()
     row.Check:Hide()
     row.ClassIcon:Hide()
@@ -1882,13 +1884,10 @@ local function InitRollRow(row, d)
         row.ClassIcon:Show()
     end
 
-    -- name (+ dimmed guild rank when there is room)
-    local name = d.name
-    if RTC.DB.ShowGuildRank and d.rank and d.rank ~= "" and
-        (row:GetWidth() or 0) >= NARROW_ROW then
-        name = name .. " |cff707070" .. d.rank .. "|r"
-    end
-    row.Name:SetText(name)
+    -- name, then the guild rank in a small dim font (truncated first)
+    row.Name:SetText(d.name)
+    row.Rank:SetText(RTC.DB.ShowGuildRank and d.rank or "")
+    row.Rank:SetShown(not isHeader)
     local r, g, b = ClassRGB(d.class)
     if not (r and RTC.DB.ColorName) then r, g, b = 1, 1, 1 end
     if d.kind == "missing" then
@@ -1919,9 +1918,11 @@ local function InitRollRow(row, d)
         end
         if d.outOfRange then row:SetAlpha(0.6) end
     end
-    -- keep the name anchored to whatever is shown on the right
-    row.Name:SetPoint("RIGHT", row.Check:IsShown() and row.Check or row.Info,
-                      "LEFT", -4, 0)
+    -- the name keeps its full width (up to the free space); the rank gets the rest
+    local right = row.Check:IsShown() and row.Check or row.Info
+    row.Rank:SetPoint("RIGHT", right, "LEFT", -4, 0)
+    local free = (row:GetWidth() or 200) - 53 - (right:IsShown() and (right:GetWidth() + 8) or 4)
+    row.Name:SetWidth(math.max(20, math.min(row.Name:GetUnboundedStringWidth() + 2, free)))
 end
 
 -- winners exactly like RTC.RollAnnounce picks them
@@ -2102,24 +2103,21 @@ local function BuildActionBar(list)
     IconButton(pass, nil, RTC.IconPass)
     SetTooltip(pass, function() return L["BtnPass"] end)
     pass:SetPoint("BOTTOMRIGHT", helper, "TOPRIGHT", 0, 2)
-    roll:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2)
     off:SetWidth(64)
-    off:SetPoint("RIGHT", pass, "LEFT", -GAP, 0)
 
     -- row A (leader): [Announce ......][v][x]
     IconButton(clear, "common-search-clearbutton")
     SetTooltip(clear, function() return list.ClearTip or L["TipClear"] end)
-    clear:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", 0, GAP)
 
     local menu = CreateFrame("Button", nil, RollTrackerClassicFrame, "UIPanelButtonTemplate")
     IconButton(menu, "common-dropdown-a-button")
     menu.ForeverIcon:SetSize(12, 12)
-    menu:SetPoint("RIGHT", clear, "LEFT", -GAP, 0)
+    menu:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", 0, GAP)
     menu:SetScript("OnClick", function(self) OpenActionMenu(self) end)
     SetTooltip(menu, function() return L["BtnMore"] end)
     list.MenuButton = menu
 
-    ann:SetPoint("BOTTOMLEFT", roll, "TOPLEFT", 0, GAP)
+    ann:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2 + BUTTON_HEIGHT + GAP)
     ann:SetPoint("RIGHT", menu, "LEFT", -GAP, 0)
 
     -- status strip: "2 rolled" ............ "3 waiting"
@@ -2165,16 +2163,160 @@ local function BuildActionBar(list)
     RollTrackerClassicCSVFrame_MessageFrame:SetPoint("BOTTOMRIGHT", export, "TOPRIGHT", -4, 8)
 end
 
--- on Forever the action bar is laid out by anchors; only Off Spec toggles
+-- Is the leader row ([Announce][menu][clear]) shown for this player?
+function RTC.ShowLeaderRow()
+    if not (RTC.DB and RTC.DB.AnnounceLeaderOnly) or not IsInGroup() then return true end
+    return UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+end
+
+-- Forever action bar layout:
+--   leader row shown:  [Announce ......][v][x]
+--                      [Roll .......][OS][P]
+--   leader row hidden: [Roll ....][OS][x][P]
+local function LayoutActionBar()
+    local list = RTC.ForeverRollList
+    local roll, off, pass = RollTrackerClassicFrameRollButton,
+                            RollTrackerClassicFrameOffSpecButton,
+                            RollTrackerClassicFramePassButton
+    local ann, clear = RollTrackerClassicFrameAnnounceButton,
+                       RollTrackerClassicFrameClearButton
+    local showLeader = RTC.ShowLeaderRow()
+    ann:SetShown(showLeader)
+    list.MenuButton:SetShown(showLeader)
+
+    for _, b in ipairs({roll, off, clear}) do b:ClearAllPoints() end
+    roll:SetPoint("BOTTOMLEFT", RollTrackerClassicFrameHelperButton, "TOPLEFT", 0, 2)
+    local rightOf = pass
+    if showLeader then
+        clear:SetPoint("LEFT", list.MenuButton, "RIGHT", GAP, 0)
+        list.MenuButton:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", -(BUTTON_HEIGHT + GAP), GAP)
+    else
+        clear:SetPoint("RIGHT", pass, "LEFT", -GAP, 0)
+        rightOf = clear
+    end
+    if RTC.DB.MainAndOffSpecMode then
+        off:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
+        off:Show()
+        rightOf = off
+    else
+        off:Hide()
+    end
+    roll:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
+
+    -- list ends above the top button row
+    list.Inset:SetPoint("BOTTOM", showLeader and ann or roll, "TOP", 0, 4)
+end
+RTC.LayoutForeverActionBar = LayoutActionBar
+
 local OriginalResizeButtons = RTC.ResizeButtons
 function RTC.ResizeButtons()
     if not RTC.DB then return end
     if not RTC.ForeverRollList then return OriginalResizeButtons() end
-    local roll, off, pass = RollTrackerClassicFrameRollButton,
-                            RollTrackerClassicFrameOffSpecButton,
-                            RollTrackerClassicFramePassButton
-    roll:SetPoint("RIGHT", RTC.DB.MainAndOffSpecMode and off or pass, "LEFT", -GAP, 0)
-    off:SetShown(RTC.DB.MainAndOffSpecMode)
+    LayoutActionBar()
+end
+
+-- countdown: the game's loot roll timer bar replaces the status strip
+local OriginalStartCountdown = RTC.StartCountdown
+function RTC.StartCountdown(x)
+    OriginalStartCountdown(x)
+    if RTC.Countdown then
+        local left = RTC.Countdown - GetTime()
+        if not RTC.CountdownTotal or left > RTC.CountdownTotal or
+            not RTC.CountdownShown then
+            RTC.CountdownTotal = left
+        end
+    end
+end
+
+local function UpdateTimerBar()
+    local list = RTC.ForeverRollList
+    if not list or not list.Timer then return end
+    local timer = list.Timer
+    local active = RTC.Countdown ~= nil and RTC.CountdownTotal and RTC.CountdownTotal > 0
+    if not active then
+        if RTC.CountdownShown then
+            RTC.CountdownShown = nil
+            RTC.CountdownTotal = nil
+            timer:Hide()
+            RollTrackerClassicFrameStatusText:Show()
+            list.Waiting:SetAlpha(1)
+        end
+        return
+    end
+    if not RTC.CountdownShown then
+        RTC.CountdownShown = true
+        timer:Show()
+        RollTrackerClassicFrameStatusText:Hide()
+        list.Waiting:SetAlpha(0)
+    end
+    local left = math.max(0, RTC.Countdown - GetTime())
+    local pct = math.min(1, left / RTC.CountdownTotal)
+    local full = timer:GetWidth() - 4
+    timer.Fill:SetShown(pct > 0)
+    timer.Fill:SetWidth(math.max(1, full * pct))
+    timer.Text:SetText(math.ceil(left))
+end
+
+local OriginalTimers = RTC.Timers
+function RTC.Timers()
+    OriginalTimers()
+    UpdateTimerBar()
+end
+
+local function BuildTimerBar(list)
+    local timer = CreateFrame("Frame", nil, RollTrackerClassicFrame)
+    timer:SetHeight(13)
+    timer:SetPoint("BOTTOMLEFT", RollTrackerClassicFrame, "BOTTOMLEFT", 0, 1)
+    timer:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrame, "BOTTOMRIGHT", 0, 1)
+    timer.Background = timer:CreateTexture(nil, "BACKGROUND")
+    timer.Background:SetAtlas("lootroll-timer-background")
+    timer.Background:SetAllPoints()
+    timer.Fill = timer:CreateTexture(nil, "ARTWORK")
+    timer.Fill:SetAtlas("lootroll-timer-fill", true)
+    timer.Fill:SetPoint("LEFT", 2, 0)
+    timer.Border = timer:CreateTexture(nil, "OVERLAY")
+    timer.Border:SetAtlas("lootroll-timer-border")
+    timer.Border:SetAllPoints()
+    timer.Text = timer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    timer.Text:SetPoint("CENTER", 0, 1)
+    timer:Hide()
+    list.Timer = timer
+end
+
+-- the game's resize handle under the window (height); edges still resize width
+local function BuildResizeHandle(list)
+    local window = RollTrackerClassicMainWindow
+    local handle = CreateFrame("Button", nil, window)
+    handle:SetSize(32, 12)
+    handle:SetPoint("TOP", window, "BOTTOM", 0, 3)
+    local tex = handle:CreateTexture(nil, "OVERLAY")
+    tex:SetAtlas("lootroll-resizehandle")
+    tex:SetAllPoints()
+    handle:SetHighlightAtlas("lootroll-resizehandle", "ADD")
+    handle:SetScript("OnMouseDown", function()
+        window:StartSizing("BOTTOM", true)
+    end)
+    handle:SetScript("OnMouseUp", function()
+        window:StopMovingOrSizing()
+        RTC.SaveAnchors()
+    end)
+    handle.isForeverChrome = true
+    tinsert(window.ForeverChrome, handle)
+    list.ResizeHandle = handle
+end
+
+-- keep the handle clear of the tabs when the loot tracker shows them
+function RTC.PlaceForeverResizeHandle()
+    local list = RTC.ForeverRollList
+    if not (list and list.ResizeHandle) then return end
+    local window = RollTrackerClassicMainWindow
+    local tabsShown = window.Tabs and window.Tabs[1] and window.Tabs[1]:IsShown()
+    list.ResizeHandle:ClearAllPoints()
+    if tabsShown then
+        list.ResizeHandle:SetPoint("TOPRIGHT", window, "BOTTOMRIGHT", -12, 3)
+    else
+        list.ResizeHandle:SetPoint("TOP", window, "BOTTOM", 0, 3)
+    end
 end
 
 local function BuildEmptyState(inset)
@@ -2208,7 +2350,8 @@ function RTC.BuildForeverLayout()
     RollTrackerClassicFrameRollScrollFrame:Hide()
     local inset = CreateFrame("Frame", nil, RollTrackerClassicFrame, "InsetFrameTemplate")
     inset:SetPoint("TOPLEFT", RollTrackerClassicFrame, "TOPLEFT", -2, 2)
-    inset:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrameClearButton, "TOPRIGHT", 2, 4)
+    inset:SetPoint("RIGHT", RollTrackerClassicFrame, "RIGHT", 2, 0)
+    inset:SetPoint("BOTTOM", RollTrackerClassicFrameAnnounceButton, "TOP", 0, 4)
 
     local box = CreateFrame("Frame", nil, inset, "WowScrollBoxList")
     box:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)
@@ -2229,7 +2372,14 @@ function RTC.BuildForeverLayout()
 
     list.Inset, list.ScrollBox, list.ScrollBar = inset, box, bar
     list.Empty = BuildEmptyState(inset)
+    BuildTimerBar(list)
+    BuildResizeHandle(list)
     RTC.ForeverRollList = list
+
+    -- leader row follows group leader / assistant changes
+    local function refresh() if RTC.DB then LayoutActionBar() end end
+    RTC.Tool.RegisterEvent("GROUP_ROSTER_UPDATE", refresh)
+    RTC.Tool.RegisterEvent("PARTY_LEADER_CHANGED", refresh)
 
     -- loot and csv tabs: put the message frames on inset panels
     AddInset(RollTrackerForeverZLootFrame, RollTrackerForeverZLootFrame_MessageFrame, -4, 4, 4, -4)

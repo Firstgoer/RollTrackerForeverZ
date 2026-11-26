@@ -95,6 +95,7 @@ function RTC.GetLocale()
         ["CboxAutoCountdownWithItem"] = "Automatically start Countdown when linking item",
         ["CboxMainAndOffSpecMode"] = "Use MS '/roll' and OS '/roll 99' system",
         ["CboxShowNotRolled"] = "Show [Not rolled] button",
+        ["CboxAnnounceLeaderOnly"] = "In a group, show [Announce] and the roll menu only to the leader and assistants",
         ["CboxAutoLootRolls"] = "Open 'Loot Rolls' automatically",
         ["CboxAutoCloseLootRolls"] = "Automatic close 'Loot Rolls' when everyone has rolled",
         ["CboxClearOnStart"] = "Clear when somebody starts a new roll",
