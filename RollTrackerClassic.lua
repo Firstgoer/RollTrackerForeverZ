@@ -2104,15 +2104,21 @@ function RTC.UpdateForeverRollList()
         list.Waiting:Hide()
     end
 
-    -- clear (x) right after "N rolled"; becomes undo (arrow) right after a clear
+    -- clear (x) at the right end of the header; becomes undo (arrow) after a clear;
+    -- "N waiting" sits just left of it
     local clear = list.HeaderClear
     local canUndo = #RTC.rollArray == 0 and #RTC.rollUndoArray > 0
     list.ClearTip = canUndo and L["TipUndo"] or L["TipClear"]
     clear.Icon:SetAtlas(canUndo and "common-icon-undo" or "common-search-clearbutton")
     clear:SetShown(#RTC.rollArray > 0 or canUndo)
     clear:ClearAllPoints()
-    local textWidth = (status:GetText() or "") ~= "" and status:GetStringWidth() or 0
-    clear:SetPoint("LEFT", status, "LEFT", textWidth + (textWidth > 0 and 4 or 0), 0)
+    clear:SetPoint("RIGHT", list.Header, "RIGHT", 0, 0)
+    list.Waiting:ClearAllPoints()
+    if clear:IsShown() then
+        list.Waiting:SetPoint("RIGHT", clear, "LEFT", -6, 0)
+    else
+        list.Waiting:SetPoint("RIGHT", list.Header, "RIGHT", 0, 0)
+    end
 end
 
 local function AddInset(parent, region, left, top, right, bottom)
