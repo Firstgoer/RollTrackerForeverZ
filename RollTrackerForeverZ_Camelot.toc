@@ -10,6 +10,7 @@
 ## AddonCompartmentFunc: RollTrackerClassic_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: RollTrackerClassic_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: RollTrackerClassic_OnAddonCompartmentLeave
+## X-Curse-Project-ID: 1833836
 ## X-Repository: https://github.com/Firstgoer/RollTrackerForeverZ
 
 embeds.xml
