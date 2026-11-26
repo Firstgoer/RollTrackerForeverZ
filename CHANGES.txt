@@ -1,5 +1,6 @@
 2.2.0 - WoW: Forever support (Interface 16001, "Camelot")
-- New RollTrackerClassicZ_Camelot.toc for the WoW: Forever client
+- Addon renamed to RollTrackerForeverZ (folder, TOC files and SavedVariables)
+- New RollTrackerForeverZ_Camelot.toc for the WoW: Forever client
 - Fixed load error: the classic Loot Rolls window (LootHistoryFrame) does not exist
   on Forever; RTC now drives the modern GroupLootHistoryFrame
 - Fixed load error: CharacterFrameTabButtonTemplate is not loaded on Forever;

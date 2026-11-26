@@ -1,0 +1,5 @@
+## Interface: 00000
+## Title: RollTracker Forever Z (Unsupported)
+## Notes: RollTracker Forever Z does not support this game version.
+
+UnsupportedGameVersion.lua

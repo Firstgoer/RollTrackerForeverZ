@@ -64,4 +64,4 @@ This command will open the Main window.
 
 ## WoW: Forever notes
 - While the game's chat messaging lockdown is active (boss encounters, Mythic+, rated PvP), chat messages are hidden from addons and addons may not send chat. RTC can't see /roll results during that time and prints its announcements only to your own chat window.
-- The addon folder must stay named `RollTrackerClassicZ` so your saved settings and loot history keep working.
+- The addon folder must be named `RollTrackerForeverZ` (the TOC files and saved settings use that name).

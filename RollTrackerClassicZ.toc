@@ -1,5 +1,0 @@
-## Interface: 00000
-## Title: RollTracker Classic Z (Unsupported)
-## Notes: RollTracker Classic Z does not support this game version.
-
-UnsupportedGameVersion.lua

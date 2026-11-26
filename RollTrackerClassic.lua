@@ -365,7 +365,7 @@ function RTC.BtnSettings()
 end
 
 function RTC.BtnLootClear()
-    if #RollTrackerClassicZLoot > 0 then
+    if #RollTrackerForeverZLoot > 0 then
         RTC.ClearLoot()
     elseif #RTC.lootUndo > 0 then
         RTC.UndoLoot()
@@ -720,8 +720,8 @@ local function EnterHyperlink(_, link)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine(L.MsgPastLoots)
             local count = 0
-            for i = #RollTrackerClassicZLoot, 1, -1 do
-                local loot = RollTrackerClassicZLoot[i]
+            for i = #RollTrackerForeverZLoot, 1, -1 do
+                local loot = RollTrackerForeverZLoot[i]
                 if loot.name == part[2] then
                     RTC.LootList_AddItem(loot, GameTooltip)
                     count = count + 1
@@ -816,11 +816,11 @@ function RTC.Init()
     RTC.PatternLootOwn = RTC.Tool.CreatePattern(LOOT_ITEM_SELF, true)
 
     -- settings
-    if not RollTrackerClassicZDB then RollTrackerClassicZDB = {} end -- fresh DB
-    RTC.DB = RollTrackerClassicZDB
+    if not RollTrackerForeverZDB then RollTrackerForeverZDB = {} end -- fresh DB
+    RTC.DB = RollTrackerForeverZDB
     if not RTC.DB.Minimap then RTC.DB.Minimap = {} end
     if not RTC.DB.CustomLocales then RTC.DB.CustomLocales = {} end
-    if not RollTrackerClassicZLoot then RollTrackerClassicZLoot = {} end
+    if not RollTrackerForeverZLoot then RollTrackerForeverZLoot = {} end
     if not RTC.DB.LootTracker then RTC.DB.LootTracker = {} end
     if not RTC.DB.LootTracker.Rarity then RTC.DB.LootTracker.Rarity = {} end
     if not RTC.DB.LootTracker.ItemType then RTC.DB.LootTracker.ItemType = {} end
@@ -862,7 +862,7 @@ function RTC.Init()
     RollTrackerClassicFrameHelperButton:Hide()
     RTC.ResizeButtons()
 
-    RollTrackerClassicZLootFrameClearButton:SetText(L["BtnClear"])
+    RollTrackerForeverZLootFrameClearButton:SetText(L["BtnClear"])
 
     RollTrackerClassicCSVFrameExportButton:SetText(L["BtnCSVExport"])
 
@@ -930,7 +930,7 @@ function RTC.Init()
     RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabRoll"],
                     RollTrackerClassicFrame)
     RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabLoot"],
-                    RollTrackerClassicZLootFrame)
+                    RollTrackerForeverZLootFrame)
     RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabCSV"],
                     RollTrackerClassicCSVFrame)
 
@@ -944,7 +944,7 @@ function RTC.Init()
     end
 
     initHyperlink(RollTrackerRollText)
-    initHyperlink(RollTrackerClassicZLootFrame_MessageFrame)
+    initHyperlink(RollTrackerForeverZLootFrame_MessageFrame)
     RTC.OptionsUpdate()
 end
 
@@ -1526,11 +1526,11 @@ function RTC.AddLoot(name, lootitem)
         RTC.DB.LootTracker.ItemType[loot.itemType] or
         RTC.whitelist[string.match(loot.itemLink, "item:(.-):") or 0] then
 
-        while #RollTrackerClassicZLoot >= RTC.DB.LootTracker.NbLoots do
-            tremove(RollTrackerClassicZLoot, 1)
+        while #RollTrackerForeverZLoot >= RTC.DB.LootTracker.NbLoots do
+            tremove(RollTrackerForeverZLoot, 1)
         end
 
-        tinsert(RollTrackerClassicZLoot, loot)
+        tinsert(RollTrackerForeverZLoot, loot)
         RTC.CSVList_AddItem(loot)
         RTC.LootList_AddItem(loot)
         RTC.UpdateLootList()
@@ -1538,15 +1538,15 @@ function RTC.AddLoot(name, lootitem)
 end
 
 function RTC.ClearLoot(doMsg)
-    if #RollTrackerClassicZLoot > 0 then
+    if #RollTrackerForeverZLoot > 0 then
         if doMsg then
             DEFAULT_CHAT_FRAME:AddMessage(RTC.MSGPREFIX .. L["MsgLootCleared"],
                                           RTC.DB.ColorChat.r,
                                           RTC.DB.ColorChat.g,
                                           RTC.DB.ColorChat.b, RTC.DB.ColorChat.a)
         end
-        RTC.lootUndo = RollTrackerClassicZLoot
-        RollTrackerClassicZLoot = {}
+        RTC.lootUndo = RollTrackerForeverZLoot
+        RollTrackerForeverZLoot = {}
         RTC.OptionsUpdate()
     end
 end
@@ -1559,7 +1559,7 @@ function RTC.UndoLoot(doMsg)
                                           RTC.DB.ColorChat.g,
                                           RTC.DB.ColorChat.b, RTC.DB.ColorChat.a)
         end
-        RollTrackerClassicZLoot = RTC.lootUndo
+        RollTrackerForeverZLoot = RTC.lootUndo
         RTC.lootUndo = {}
         RTC.OptionsUpdate()
     end
@@ -1603,7 +1603,7 @@ function RTC.LootList_AddItem(loot, frame)
                                  date("%y-%m-%d %H:%M", loot.timestamp), name,
                                  icon .. loot.itemLink .. stack)
         end
-        RollTrackerClassicZLootFrame_MessageFrame:AddMessage(Text, RTC.DB
+        RollTrackerForeverZLootFrame_MessageFrame:AddMessage(Text, RTC.DB
                                                                  .ColorScroll.r,
                                                              RTC.DB.ColorScroll
                                                                  .g, RTC.DB
@@ -1620,26 +1620,26 @@ end
 
 function RTC.LootListInit()
 
-    RollTrackerClassicZLootFrame_MessageFrame:SetFading(false);
+    RollTrackerForeverZLootFrame_MessageFrame:SetFading(false);
     if RTC.DB.LootTracker.SmallFont then
-        RollTrackerClassicZLootFrame_MessageFrame:SetFontObject(
+        RollTrackerForeverZLootFrame_MessageFrame:SetFontObject(
             GameFontNormalSmall);
     else
-        RollTrackerClassicZLootFrame_MessageFrame:SetFontObject(GameFontNormal);
+        RollTrackerForeverZLootFrame_MessageFrame:SetFontObject(GameFontNormal);
     end
-    RollTrackerClassicZLootFrame_MessageFrame:SetJustifyH("LEFT");
-    RollTrackerClassicZLootFrame_MessageFrame:SetHyperlinksEnabled(true);
-    RollTrackerClassicZLootFrame_MessageFrame:SetTextCopyable(true);
-    RollTrackerClassicZLootFrame_MessageFrame:Clear()
-    RollTrackerClassicZLootFrame_MessageFrame:SetMaxLines(RTC.DB.LootTracker
+    RollTrackerForeverZLootFrame_MessageFrame:SetJustifyH("LEFT");
+    RollTrackerForeverZLootFrame_MessageFrame:SetHyperlinksEnabled(true);
+    RollTrackerForeverZLootFrame_MessageFrame:SetTextCopyable(true);
+    RollTrackerForeverZLootFrame_MessageFrame:Clear()
+    RollTrackerForeverZLootFrame_MessageFrame:SetMaxLines(RTC.DB.LootTracker
                                                               .NbLoots)
 
     if RTC.DB.LootTracker.Enable then
-        for _, loot in ipairs(RollTrackerClassicZLoot) do
+        for _, loot in ipairs(RollTrackerForeverZLoot) do
             RTC.LootList_AddItem(loot)
         end
     else
-        RollTrackerClassicZLootFrame_MessageFrame:AddMessage(
+        RollTrackerForeverZLootFrame_MessageFrame:AddMessage(
             L["MsgLTnotenabled"], RTC.DB.ColorScroll.r, RTC.DB.ColorScroll.g,
             RTC.DB.ColorScroll.b, RTC.DB.ColorScroll.a)
     end
@@ -1648,17 +1648,17 @@ end
 function RTC.UpdateLootList()
 
     if RTC.DB.LootTracker.Enable then
-        RollTrackerClassicZLootFrameStatusText:SetText(string.format(
+        RollTrackerForeverZLootFrameStatusText:SetText(string.format(
                                                            L["MsgNbLoots"],
-                                                           #RollTrackerClassicZLoot))
+                                                           #RollTrackerForeverZLoot))
     else
-        RollTrackerClassicZLootFrameStatusText:SetText("")
+        RollTrackerForeverZLootFrameStatusText:SetText("")
     end
 
-    if #RollTrackerClassicZLoot == 0 and #RTC.lootUndo > 0 then
-        RollTrackerClassicZLootFrameClearButton:SetText(L["BtnUndo"])
+    if #RollTrackerForeverZLoot == 0 and #RTC.lootUndo > 0 then
+        RollTrackerForeverZLootFrameClearButton:SetText(L["BtnUndo"])
     else
-        RollTrackerClassicZLootFrameClearButton:SetText(L["BtnClear"])
+        RollTrackerForeverZLootFrameClearButton:SetText(L["BtnClear"])
     end
 end
 
@@ -1721,14 +1721,14 @@ function RTC.CSVListInit()
     RollTrackerClassicCSVFrame_MessageFrame:SetMaxLines(RTC.DB.LootTracker
                                                             .NbLoots)
 
-    for _, loot in ipairs(RollTrackerClassicZLoot) do
+    for _, loot in ipairs(RollTrackerForeverZLoot) do
         RTC.CSVList_AddItem(loot)
     end
 end
 
 function RTC.BtnExport()
     local Text = ""
-    for _, loot in ipairs(RollTrackerClassicZLoot) do
+    for _, loot in ipairs(RollTrackerForeverZLoot) do
         Text = Text .. RTC.CSVList_AddItem(loot, true) .. "\n"
     end
     RTC.Tool.CopyPast(Text)

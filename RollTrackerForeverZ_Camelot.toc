@@ -6,7 +6,7 @@
 ## IconTexture: Interface/Buttons/UI-GroupLoot-Dice-Up
 ## Author: GPI / Erytheia-Razorfen / Zolerii / Roadblock / Dosmod / Firstgoer / Claude
 ## DefaultState: enabled
-## SavedVariables: RollTrackerClassicZDB,RollTrackerClassicZLoot
+## SavedVariables: RollTrackerForeverZDB,RollTrackerForeverZLoot
 ## AddonCompartmentFunc: RollTrackerClassic_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: RollTrackerClassic_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: RollTrackerClassic_OnAddonCompartmentLeave
