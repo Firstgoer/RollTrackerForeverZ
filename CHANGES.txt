@@ -24,7 +24,7 @@
 - Forever look: modern flat panel, title bar, close button and tabs; right-click
   menu uses the native Blizzard menu; addon compartment (minimap list) entry
 - Forever window redesign: winner row with gold highlight bar and checkmark,
-  "tie" marker, dimmed out-of-range rolls, orange re-roll count, section counts,
+  "tie" marker, dimmed out-of-range rolls, re-roll refresh icon, section counts,
   empty state; action bar [Announce][more v][clear] / [Roll][Off Spec][pass];
   "Not rolled" moved into the more-menu and a clickable "N waiting" status
 - Guild rank shown in the smallest dim font after the name (truncated first)

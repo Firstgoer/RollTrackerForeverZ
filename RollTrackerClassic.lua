@@ -1909,7 +1909,10 @@ local function InitRollRow(row, d)
         elseif d.outOfRange then
             info, fontObject = string.format("%d-%d", d.low, d.high), GameFontRedSmall
         elseif d.count > 1 then
-            info, fontObject = string.format("x%d", d.count), GameFontNormalSmall
+            -- re-roll: the game's refresh icon (plus the count from the 3rd roll on)
+            info = "|TInterface\\Buttons\\UI-RefreshButton:12:12|t"
+            if d.count > 2 then info = info .. d.count end
+            fontObject = GameFontNormalSmall
         end
         if info then
             row.Info:SetFontObject(fontObject)
