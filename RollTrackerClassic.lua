@@ -1831,9 +1831,55 @@ local function ClassRGB(class)
     if c then return c.r, c.g, c.b end
 end
 
+local function ShowRowRemove(row, show)
+    local remove = row.RemoveButton
+    if not remove then return end
+    show = show and row.data and row.data.kind == "roll"
+    remove:SetShown(show)
+    -- the rollback icon temporarily takes the place of the right-side info
+    if show then
+        row.Check:SetAlpha(0)
+        row.Info:SetAlpha(0)
+    else
+        row.Check:SetAlpha(1)
+        row.Info:SetAlpha(1)
+    end
+end
+
 local function RowOnEnter(row)
     local d = row.data
+    ShowRowRemove(row, true)
     if d and d.name then EnterHyperlink(nil, "player:" .. d.name) end
+end
+
+local function RowOnLeave(row)
+    GameTooltip_Hide()
+    if not (row.RemoveButton and row.RemoveButton:IsMouseOver()) then
+        ShowRowRemove(row, false)
+    end
+end
+
+local function EnsureRowRemove(row)
+    if row.RemoveButton then return end
+    local remove = CreateFrame("Button", nil, row)
+    remove:SetSize(14, 14)
+    remove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    remove:SetNormalAtlas("common-icon-undo")
+    remove:SetHighlightAtlas("common-icon-undo", "ADD")
+    remove:SetScript("OnClick", function()
+        if row.data and row.data.ref then RTC.RemoveRoll(row.data.ref) end
+    end)
+    remove:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["TipRemoveRoll"])
+        GameTooltip:Show()
+    end)
+    remove:SetScript("OnLeave", function()
+        GameTooltip_Hide()
+        if not row:IsMouseOver() then ShowRowRemove(row, false) end
+    end)
+    remove:Hide()
+    row.RemoveButton = remove
 end
 
 local function RowOnClick(row)
@@ -1854,8 +1900,10 @@ local function InitRollRow(row, d)
     row.WinnerBar:SetShown(d.winner == true)
     row.Stripe:SetShown(not isHeader and d.stripe == true and not d.winner)
     row:SetAlpha(1)
+    EnsureRowRemove(row)
+    ShowRowRemove(row, false)
     row:SetScript("OnEnter", RowOnEnter)
-    row:SetScript("OnLeave", GameTooltip_Hide)
+    row:SetScript("OnLeave", RowOnLeave)
     row:SetScript("OnClick", RowOnClick)
 
     if isHeader then
@@ -1972,7 +2020,7 @@ function RTC.UpdateForeverRollList()
     local function entry(roll)
         local p = partyName[roll.Name]
         return {
-            kind = "roll", name = roll.Name, roll = roll.Roll, low = roll.Low,
+            kind = "roll", ref = roll, name = roll.Name, roll = roll.Roll, low = roll.Low,
             high = roll.High, count = roll.Count,
             class = p and p.class, rank = p and p.rank or "",
             outOfRange = (roll.Low ~= 1 or roll.High ~= 100) and
@@ -2042,8 +2090,9 @@ function RTC.UpdateForeverRollList()
             rolled = rolled + 1
         end
     end
-    if rolled == 0 and #waiting == 0 then
-        RollTrackerClassicFrameStatusText:SetText("")
+    local status = RollTrackerClassicFrameStatusText
+    if rolled == 0 then
+        status:SetText("")
     else
         RollTrackerClassicFrameStatusText:SetText(string.format(L["TxtRolled"], rolled))
     end
@@ -2055,9 +2104,15 @@ function RTC.UpdateForeverRollList()
         list.Waiting:Hide()
     end
 
-    -- clear button tooltip follows clear/undo state
-    list.ClearTip = (#RTC.rollArray == 0 and #RTC.rollUndoArray > 0) and L["TipUndo"] or L["TipClear"]
-    RollTrackerClassicFrameClearButton:SetText("")
+    -- clear (x) right after "N rolled"; becomes undo (arrow) right after a clear
+    local clear = list.HeaderClear
+    local canUndo = #RTC.rollArray == 0 and #RTC.rollUndoArray > 0
+    list.ClearTip = canUndo and L["TipUndo"] or L["TipClear"]
+    clear.Icon:SetAtlas(canUndo and "common-icon-undo" or "common-search-clearbutton")
+    clear:SetShown(#RTC.rollArray > 0 or canUndo)
+    clear:ClearAllPoints()
+    local textWidth = (status:GetText() or "") ~= "" and status:GetStringWidth() or 0
+    clear:SetPoint("LEFT", status, "LEFT", textWidth + (textWidth > 0 and 4 or 0), 0)
 end
 
 local function AddInset(parent, region, left, top, right, bottom)
@@ -2086,15 +2141,17 @@ local function IconButton(button, atlas, texture)
     button.ForeverIcon = icon
 end
 
-local function OpenActionMenu(owner)
-    MenuUtil.CreateContextMenu(owner, function(_, root)
-        root:CreateButton(L["MenuCountdown"], function() RTC.StartCountdown() end)
-        root:CreateButton(L["MenuAnnounceNotRolled"], function() RTC.NotRolled() end)
-        root:CreateDivider()
-        root:CreateButton(L["BtnClear"], function() RTC.ClearRolls() end)
-        local undo = root:CreateButton(L["BtnUndo"], function() RTC.UndoRolls() end)
-        undo:SetEnabled(#RTC.rollUndoArray > 0)
-    end)
+-- Removes one roll (row "rollback"): someone rolled by mistake
+function RTC.RemoveRoll(ref)
+    for i, roll in ipairs(RTC.rollArray) do
+        if roll == ref then
+            tremove(RTC.rollArray, i)
+            local n = (RTC.rollNames[roll.Name] or 1) - 1
+            RTC.rollNames[roll.Name] = n > 0 and n or nil
+            break
+        end
+    end
+    RTC.UpdateRollList()
 end
 
 local function BuildActionBar(list)
@@ -2106,33 +2163,25 @@ local function BuildActionBar(list)
                              RollTrackerClassicFrameNotRolledButton,
                              RollTrackerClassicFrameClearButton
 
-    for _, b in ipairs({roll, off, pass, ann, clear}) do
+    for _, b in ipairs({roll, off, pass, ann}) do
         b:SetHeight(BUTTON_HEIGHT)
         b:SetNormalFontObject(GameFontNormal)
         b:SetHighlightFontObject(GameFontHighlight)
         b:SetDisabledFontObject(GameFontDisable)
         b:ClearAllPoints()
     end
-    notr:Hide() -- moved to the action menu and the status strip
-    notr.Show = notr.Hide
+    -- "Not rolled" lives in the list header ("N waiting"), Clear/Undo next to "N rolled"
+    for _, b in ipairs({notr, clear}) do
+        b:Hide()
+        b.Show = b.Hide
+    end
 
-    -- row B (everyone): [Roll .........][OS][P]
+    -- one row: [Roll .......][OS][Pass][Announce][clock]
     IconButton(pass, nil, RTC.IconPass)
     SetTooltip(pass, function() return L["BtnPass"] end)
-    pass:SetPoint("BOTTOMRIGHT", helper, "TOPRIGHT", 0, 2)
+    IconButton(ann, "voicechat-icon-speaker")
+    SetTooltip(ann, function() return L["BtnAnnounce"] end)
     off:SetWidth(64)
-
-    -- row A (leader): [Announce ......][v][x]
-    IconButton(clear, "common-search-clearbutton")
-    SetTooltip(clear, function() return list.ClearTip or L["TipClear"] end)
-
-    local menu = CreateFrame("Button", nil, RollTrackerClassicFrame, "UIPanelButtonTemplate")
-    IconButton(menu, "common-dropdown-a-button")
-    menu.ForeverIcon:SetSize(12, 12)
-    menu:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", 0, GAP)
-    menu:SetScript("OnClick", function(self) OpenActionMenu(self) end)
-    SetTooltip(menu, function() return L["BtnMore"] end)
-    list.MenuButton = menu
 
     -- countdown (raid leader / assistants): click starts, click again stops
     local cd = CreateFrame("Button", nil, RollTrackerClassicFrame, "UIPanelButtonTemplate")
@@ -2147,9 +2196,7 @@ local function BuildActionBar(list)
     end)
     list.CountdownButton = cd
 
-    ann:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2 + BUTTON_HEIGHT + GAP)
-
-    -- "2 rolled" / "3 waiting": placed in the list header by BuildListHeader
+    -- "2 rolled" / "3 waiting": placed in the list header in BuildForeverLayout
     local status = RollTrackerClassicFrameStatusText
     status:SetFontObject(GameFontNormalSmall)
     local waiting = CreateFrame("Button", nil, RollTrackerClassicFrame)
@@ -2173,6 +2220,16 @@ local function BuildActionBar(list)
     waiting:SetScript("OnLeave", GameTooltip_Hide)
     list.Waiting = waiting
 
+    -- clear (x) / undo (arrow) next to "N rolled"
+    local headerClear = CreateFrame("Button", nil, RollTrackerClassicFrame)
+    headerClear:SetSize(16, 16)
+    headerClear.Icon = headerClear:CreateTexture(nil, "ARTWORK")
+    headerClear.Icon:SetAllPoints()
+    headerClear:SetHighlightAtlas("common-search-clearbutton", "ADD")
+    headerClear:SetScript("OnClick", function() RTC.BtnClearRolls() end)
+    SetTooltip(headerClear, function() return list.ClearTip or L["TipClear"] end)
+    list.HeaderClear = headerClear
+
     -- loot / csv tab buttons
     local lootClear = RollTrackerForeverZLootFrameClearButton
     local export = RollTrackerClassicCSVFrameExportButton
@@ -2190,73 +2247,74 @@ local function BuildActionBar(list)
     RollTrackerClassicCSVFrame_MessageFrame:SetPoint("BOTTOMRIGHT", export, "TOPRIGHT", -4, 8)
 end
 
--- Is the leader row ([Announce][menu][clear]) shown for this player?
+-- Is [Announce] shown for this player?
 function RTC.ShowLeaderRow()
     if not (RTC.DB and RTC.DB.AnnounceLeaderOnly) or not IsInGroup() then return true end
     return UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
 end
 
--- Forever action bar layout:
---   leader row shown:  [Announce ......][v][x]
---                      [Roll .......][OS][P]
---   leader row hidden: [Roll ....][OS][x][P]
+local function LabelOrIcon(button, width, label, icon)
+    if width >= 64 then
+        button.ForeverIcon:Hide()
+        button:SetText(label)
+    else
+        button.ForeverIcon:Show()
+        button:SetText("")
+    end
+end
+
+-- Forever action bar, one row:
+--   [Roll ..........][OS][Pass][Announce][clock]
+-- Pass and Announce share the same width; Roll always keeps the largest share.
 local function LayoutActionBar()
     local list = RTC.ForeverRollList
     local roll, off, pass = RollTrackerClassicFrameRollButton,
                             RollTrackerClassicFrameOffSpecButton,
                             RollTrackerClassicFramePassButton
-    local ann, clear = RollTrackerClassicFrameAnnounceButton,
-                       RollTrackerClassicFrameClearButton
-    local showLeader = RTC.ShowLeaderRow()
-    ann:SetShown(showLeader)
-    list.MenuButton:SetShown(showLeader)
-    local isLead = not IsInGroup() or UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
-    local showCountdown = showLeader and isLead
-    list.CountdownButton:SetShown(showCountdown)
-    list.CountdownButton:ClearAllPoints()
-    list.CountdownButton:SetPoint("RIGHT", list.MenuButton, "LEFT", -GAP, 0)
-    ann:SetPoint("RIGHT", showCountdown and list.CountdownButton or list.MenuButton, "LEFT", -GAP, 0)
+    local ann, cd = RollTrackerClassicFrameAnnounceButton, list.CountdownButton
+    local helper = RollTrackerClassicFrameHelperButton
 
-    for _, b in ipairs({roll, off, clear}) do b:ClearAllPoints() end
-    roll:SetPoint("BOTTOMLEFT", RollTrackerClassicFrameHelperButton, "TOPLEFT", 0, 2)
-    local rightOf = pass
-    if showLeader then
-        clear:SetPoint("LEFT", list.MenuButton, "RIGHT", GAP, 0)
-        list.MenuButton:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", -(BUTTON_HEIGHT + GAP), GAP)
-    else
-        clear:SetPoint("RIGHT", pass, "LEFT", -GAP, 0)
-        rightOf = clear
+    local showAnnounce = RTC.ShowLeaderRow()
+    local isLead = not IsInGroup() or UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+    local showCountdown = showAnnounce and isLead
+    local ms = RTC.DB.MainAndOffSpecMode
+    ann:SetShown(showAnnounce)
+    cd:SetShown(showCountdown)
+    off:SetShown(ms)
+
+    for _, b in ipairs({roll, off, pass, ann, cd}) do b:ClearAllPoints() end
+
+    local w = helper:GetWidth() or 0
+    local reserved = 0
+    if showCountdown then reserved = reserved + BUTTON_HEIGHT + GAP end
+    if ms then reserved = reserved + off:GetWidth() + GAP end
+    local share = showAnnounce and 0.28 or 0.34
+    local side = math.max(BUTTON_HEIGHT, math.floor((w - reserved) * share))
+    pass:SetWidth(side)
+    ann:SetWidth(side)
+
+    -- right to left
+    local rightOf
+    local function place(button)
+        if rightOf then
+            button:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
+        else
+            button:SetPoint("BOTTOMRIGHT", helper, "TOPRIGHT", 0, 2)
+        end
+        rightOf = button
     end
-    if RTC.DB.MainAndOffSpecMode then
-        off:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
-        off:Show()
-        rightOf = off
-    else
-        off:Hide()
-    end
+    if showCountdown then place(cd) end
+    if showAnnounce then place(ann) end
+    place(pass)
+    if ms then place(off) end
+    roll:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2)
     roll:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
 
-    -- Pass gets about a third of the row (Roll keeps the larger share);
-    -- with enough room it shows its label next to the icon
-    local w = RollTrackerClassicFrameHelperButton:GetWidth() or 0
-    local reserved = GAP
-    if RTC.DB.MainAndOffSpecMode then reserved = reserved + off:GetWidth() + GAP end
-    if not showLeader then reserved = reserved + BUTTON_HEIGHT + GAP end
-    local passWidth = math.max(BUTTON_HEIGHT, math.floor((w - reserved) / 3))
-    pass:SetWidth(passWidth)
-    if passWidth >= 60 then
-        pass.ForeverIcon:Hide()
-        pass:SetText(string.format(RTC.TxtEscapePicture, RTC.IconPass) .. " " .. L["BtnPass"])
-    else
-        pass.ForeverIcon:Show()
-        pass:SetText("")
-    end
-    if showLeader then
-        list.MenuButton:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", -(BUTTON_HEIGHT + GAP), GAP)
-    end
+    LabelOrIcon(pass, side, string.format(RTC.TxtEscapePicture, RTC.IconPass) .. " " .. L["BtnPass"])
+    LabelOrIcon(ann, side, L["BtnAnnounce"])
 
-    -- list ends above the top button row
-    list.Inset:SetPoint("BOTTOM", showLeader and ann or roll, "TOP", 0, 4)
+    -- list ends above the action row
+    list.Inset:SetPoint("BOTTOM", roll, "TOP", 0, 4)
 end
 RTC.LayoutForeverActionBar = LayoutActionBar
 
@@ -2420,7 +2478,7 @@ function RTC.BuildForeverLayout()
     local inset = CreateFrame("Frame", nil, RollTrackerClassicFrame, "InsetFrameTemplate")
     inset:SetPoint("TOPLEFT", RollTrackerClassicFrame, "TOPLEFT", -2, 2)
     inset:SetPoint("RIGHT", RollTrackerClassicFrame, "RIGHT", 2, 0)
-    inset:SetPoint("BOTTOM", RollTrackerClassicFrameAnnounceButton, "TOP", 0, 4)
+    inset:SetPoint("BOTTOM", RollTrackerClassicFrameRollButton, "TOP", 0, 4)
 
     -- the old bottom status line is gone: buttons sit on the frame's bottom edge
     local helper = RollTrackerClassicFrameHelperButton
@@ -2446,6 +2504,7 @@ function RTC.BuildForeverLayout()
     status:SetPoint("RIGHT", header, "CENTER", 0, 0)
     status:SetJustifyH("LEFT")
     status:SetJustifyV("MIDDLE")
+    list.HeaderClear:SetParent(header)
     list.Waiting:SetParent(header)
     list.Waiting:ClearAllPoints()
     list.Waiting:SetPoint("RIGHT", header, "RIGHT", 0, 0)
