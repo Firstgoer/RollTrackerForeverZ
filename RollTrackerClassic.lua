@@ -2031,8 +2031,19 @@ function RTC.UpdateForeverRollList()
                                    ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
     list.Empty:SetShown(#RTC.rollArray == 0)
 
-    -- status strip
-    RollTrackerClassicFrameStatusText:SetText(string.format(L["TxtRolled"], #RTC.rollArray))
+    -- list header: players who rolled (a re-roll doesn't count twice) / waiting
+    local seen, rolled = {}, 0
+    for _, roll in ipairs(RTC.rollArray) do
+        if not seen[roll.Name] then
+            seen[roll.Name] = true
+            rolled = rolled + 1
+        end
+    end
+    if rolled == 0 and #waiting == 0 then
+        RollTrackerClassicFrameStatusText:SetText("")
+    else
+        RollTrackerClassicFrameStatusText:SetText(string.format(L["TxtRolled"], rolled))
+    end
     list.Waiting.players = waiting
     if #waiting > 0 then
         list.Waiting:SetText(string.format(L["TxtWaiting"], #waiting))
@@ -2123,13 +2134,11 @@ local function BuildActionBar(list)
     ann:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2 + BUTTON_HEIGHT + GAP)
     ann:SetPoint("RIGHT", menu, "LEFT", -GAP, 0)
 
-    -- status strip: "2 rolled" ............ "3 waiting"
+    -- "2 rolled" / "3 waiting": placed in the list header by BuildListHeader
     local status = RollTrackerClassicFrameStatusText
-    status:SetFontObject(GameFontHighlightSmall)
-    status:SetTextColor(1, 1, 1)
+    status:SetFontObject(GameFontNormalSmall)
     local waiting = CreateFrame("Button", nil, RollTrackerClassicFrame)
-    waiting:SetSize(80, 12)
-    waiting:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrame, "BOTTOMRIGHT", -2, 2)
+    waiting:SetSize(100, 16)
     waiting:SetNormalFontObject(GameFontDisableSmall)
     waiting:SetHighlightFontObject(GameFontHighlightSmall)
     waiting:SetText(" ")
@@ -2288,8 +2297,9 @@ end
 local function BuildTimerBar(list)
     local timer = CreateFrame("Frame", nil, RollTrackerClassicFrame)
     timer:SetHeight(13)
-    timer:SetPoint("BOTTOMLEFT", RollTrackerClassicFrame, "BOTTOMLEFT", 0, 1)
-    timer:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrame, "BOTTOMRIGHT", 0, 1)
+    timer:SetParent(list.Header)
+    timer:SetPoint("LEFT", list.Header, "LEFT", -2, 1)
+    timer:SetPoint("RIGHT", list.Header, "RIGHT", 2, 1)
     timer.Background = timer:CreateTexture(nil, "BACKGROUND")
     timer.Background:SetAtlas("lootroll-timer-background")
     timer.Background:SetAllPoints()
@@ -2391,8 +2401,37 @@ function RTC.BuildForeverLayout()
     inset:SetPoint("RIGHT", RollTrackerClassicFrame, "RIGHT", 2, 0)
     inset:SetPoint("BOTTOM", RollTrackerClassicFrameAnnounceButton, "TOP", 0, 4)
 
+    -- the old bottom status line is gone: buttons sit on the frame's bottom edge
+    local helper = RollTrackerClassicFrameHelperButton
+    helper:ClearAllPoints()
+    helper:SetPoint("BOTTOMLEFT", RollTrackerClassicFrame, "BOTTOMLEFT", 0, -2)
+    helper:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrame, "BOTTOMRIGHT", 0, -2)
+    helper:SetHeight(1)
+
+    -- list header inside the inset: "2 rolled" ...... "3 waiting" / countdown bar
+    local header = CreateFrame("Frame", nil, inset)
+    header:SetHeight(18)
+    header:SetPoint("TOPLEFT", inset, "TOPLEFT", 8, -3)
+    header:SetPoint("TOPRIGHT", inset, "TOPRIGHT", -8, -3)
+    local divider = header:CreateTexture(nil, "ARTWORK")
+    divider:SetColorTexture(1, 1, 1, 0.12)
+    divider:SetHeight(1)
+    divider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", -4, 0)
+    divider:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 4, 0)
+    local status = RollTrackerClassicFrameStatusText
+    status:SetParent(header)
+    status:ClearAllPoints()
+    status:SetPoint("LEFT", header, "LEFT", 0, 0)
+    status:SetPoint("RIGHT", header, "CENTER", 0, 0)
+    status:SetJustifyH("LEFT")
+    status:SetJustifyV("MIDDLE")
+    list.Waiting:SetParent(header)
+    list.Waiting:ClearAllPoints()
+    list.Waiting:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+    list.Header = header
+
     local box = CreateFrame("Frame", nil, inset, "WowScrollBoxList")
-    box:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)
+    box:SetPoint("TOPLEFT", header, "BOTTOMLEFT", -4, -2)
     box:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -14, 4)
     local bar = CreateFrame("EventFrame", nil, inset, "MinimalScrollBar")
     bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 4, 0)

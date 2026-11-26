@@ -41,7 +41,7 @@
 						<Anchor point="LEFT" relativeKey="$parent.ClassIcon" relativePoint="RIGHT" x="4" y="0" />
 					</Anchors>
 				</FontString>
-				<FontString parentKey="Rank" inherits="GameFontDisableTiny" justifyH="LEFT" wordwrap="false">
+				<FontString parentKey="Rank" inherits="GameFontDisableTiny2" justifyH="LEFT" wordwrap="false">
 					<Anchors>
 						<Anchor point="LEFT" relativeKey="$parent.Name" relativePoint="RIGHT" x="4" y="0" />
 						<Anchor point="RIGHT" relativeKey="$parent.Info" relativePoint="LEFT" x="-4" y="0" />
