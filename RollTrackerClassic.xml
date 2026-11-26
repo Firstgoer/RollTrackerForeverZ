@@ -77,7 +77,7 @@
 				</Anchors>
 				<Scripts>
 					<OnClick>
-						 ToggleLootHistoryFrame()
+						 RollTrackerClassic_Addon.LootHistoryShow()
 					</OnClick>
 				</Scripts>
 			</Button>
@@ -351,7 +351,7 @@
 								RollTrackerClassic_Addon.ScrollLootList(self,delta)
 							</OnMouseWheel>
 							<OnHyperlinkClick>
-								ChatFrame_OnHyperlinkShow(DEFAULT_CHAT_FRAME,link,text,button)
+								SetItemRef(link, text, button, DEFAULT_CHAT_FRAME)
 							</OnHyperlinkClick>
 						</Scripts>
 

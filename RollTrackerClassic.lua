@@ -24,6 +24,36 @@ RTC.MSGPREFIX_START = "RTC.StartRoll: "
 RTC.LOOTTRACKER_MAXLINES = 1000
 RTC.CLASSIC_ERA = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
 RTC.BCC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC
+-- WoW: Forever ("Camelot", interface 16001) runs on the modern 12.x API
+RTC.FOREVER = WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
+
+-- API compatibility (Forever / modern clients moved many globals into C_ namespaces)
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or _G.GetItemInfo
+local GetItemClassInfo = (C_Item and C_Item.GetItemClassInfo) or _G.GetItemClassInfo
+local SendChatMessage = (C_ChatInfo and C_ChatInfo.SendChatMessage) or _G.SendChatMessage
+local issecretvalue = _G.issecretvalue or function() return false end
+
+-- Chat payloads are "secret" (unreadable by addons) while chat messaging lockdown
+-- is active (boss encounters, M+, rated PvP); addons may not send chat then either.
+local function InChatLockdown()
+    return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and
+               C_ChatInfo.InChatMessagingLockdown() or false
+end
+RTC.InChatLockdown = InChatLockdown
+
+local function IsReadable(...)
+    for i = 1, select("#", ...) do
+        if issecretvalue((select(i, ...))) then return false end
+    end
+    return true
+end
+RTC.IsReadable = IsReadable
+
+-- Group loot roll window: modern clients use GroupLootHistoryFrame
+local function ModernLootHistory() return GroupLootHistoryFrame ~= nil end
+local function GetLootHistoryFrame()
+    return GroupLootHistoryFrame or LootHistoryFrame
+end
 
 function RTC.GetPlayerList(unsort)
     local count, start
@@ -51,14 +81,22 @@ function RTC.GetPlayerList(unsort)
         end
         local name = GetUnitName(id)
         local _, englishClass = UnitClass(id)
+        if not IsReadable(name) then name = nil end
+        if not IsReadable(englishClass) then englishClass = nil end
 
         local rank = ""
-        if IsInGuild() and UnitIsInMyGuild(id) then
-            rank = "<" .. GuildControlGetRankName(C_GuildInfo.GetGuildRankOrder(UnitGUID(id))) .. ">"
-        else
-            guildName, guildRankName = GetGuildInfo(id)
-            if guildName and guildRankName then
-                rank = "<" .. guildName .. " / " .. guildRankName .. ">"
+        if name ~= nil then
+            local guid = UnitGUID(id)
+            if IsInGuild() and guid and IsReadable(guid) and UnitIsInMyGuild(id) then
+                local order = C_GuildInfo.GetGuildRankOrder(guid)
+                local rankName = order and GuildControlGetRankName(order)
+                if rankName then rank = "<" .. rankName .. ">" end
+            else
+                guildName, guildRankName = GetGuildInfo(id)
+                if IsReadable(guildName, guildRankName) and guildName and
+                    guildRankName then
+                    rank = "<" .. guildName .. " / " .. guildRankName .. ">"
+                end
             end
         end
 
@@ -77,7 +115,8 @@ function RTC.GetPlayerList(unsort)
     if unsort then
         sort(ret, function(a, b)
             return
-                (a.class < b.class or (a.class == b.class and a.name < b.name))
+                ((a.class or "") < (b.class or "") or
+                    ((a.class or "") == (b.class or "") and a.name < b.name))
         end)
     end
 
@@ -131,7 +170,7 @@ end
 
 function RTC.AddChat(msg)
     if msg ~= nil and msg ~= "" then
-        if IsInGroup() or IsInRaid() then
+        if (IsInGroup() or IsInRaid()) and not InChatLockdown() then
             SendChatMessage(msg, RTC.GetAutoChannel())
         else
             DEFAULT_CHAT_FRAME:AddMessage(msg, RTC.DB.ColorChat.r,
@@ -151,7 +190,7 @@ function RTC.AllowInInstance()
     return RTC.DB["NotfiyIn" .. instanceType]
 end
 
--- LootHistory
+-- LootHistory (Blizzard group loot roll window)
 local function MyLootHistoryFrame_FullUpdate(self)
     local numItems = C_LootHistory.GetNumItems()
     for i = 1, numItems do
@@ -163,6 +202,14 @@ local function MyLootHistoryFrame_FullUpdate(self)
 end
 
 function RTC.LootHistoryClear()
+    if ModernLootHistory() then
+        -- the modern loot history is per encounter and is managed by the client
+        DEFAULT_CHAT_FRAME:AddMessage(RTC.MSGPREFIX .. L["MsgLootRollsNoClear"],
+                                      RTC.DB.ColorChat.r, RTC.DB.ColorChat.g,
+                                      RTC.DB.ColorChat.b, RTC.DB.ColorChat.a)
+        return
+    end
+
     if RTC.LootHistroyFrameHooked == nil then
         RTC.LootHistroyFrameHooked = true
         hooksecurefunc("LootHistoryFrame_FullUpdate", MyLootHistoryFrame_FullUpdate)
@@ -181,6 +228,15 @@ function RTC.LootHistoryClear()
 end
 
 function RTC.LootHistoryShow(rollID)
+    if ModernLootHistory() then
+        if rollID == nil then
+            ToggleLootHistoryFrame()
+        elseif not GroupLootHistoryFrame:IsShown() then
+            GroupLootHistoryFrame:Show()
+        end
+        return
+    end
+
     if not LootHistoryFrame:IsShown() or rollID == nil then
         ToggleLootHistoryFrame()
     end
@@ -193,7 +249,16 @@ end
 function RTC.LootHistoryHide()
     RTC.LootHistoryCountHandle = 0
     wipe(RTC.LootHistoryHandle)
-    LootHistoryFrame_CollapseAll(LootHistoryFrame)
+    if not ModernLootHistory() then
+        LootHistoryFrame_CollapseAll(LootHistoryFrame)
+    end
+end
+
+function RTC.LootHistoryClose()
+    local frame = GetLootHistoryFrame()
+    if not frame then return end
+    if not ModernLootHistory() then LootHistoryFrame_CollapseAll(frame) end
+    frame:Hide()
 end
 
 -- GUI
@@ -577,10 +642,34 @@ end
 
 -- notesystem
 local function hooked_createTooltip(self)
+    if self ~= GameTooltip then return end
     local name, unit = self:GetUnit()
+    if not IsReadable(name, unit) then return end
     if (name) and (unit) and UnitIsPlayer(unit) and RTC.Notes[name] then
         self:AddLine(RTC.Notes[name])
         self:Show()
+    end
+end
+
+local function HookUnitTooltip()
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and
+        Enum.TooltipDataType then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit,
+                                                hooked_createTooltip)
+    else
+        GameTooltip:HookScript("OnTooltipSetUnit", hooked_createTooltip)
+    end
+end
+
+local function PopupEditBox(dialog)
+    return dialog.GetEditBox and dialog:GetEditBox() or dialog.editBox
+end
+
+local function FocusActiveChatWindow()
+    if ChatFrameUtil and ChatFrameUtil.FocusActiveWindow then
+        ChatFrameUtil.FocusActiveWindow()
+    elseif ChatEdit_FocusActiveWindow then
+        ChatEdit_FocusActiveWindow()
     end
 end
 
@@ -666,7 +755,7 @@ local function initHyperlink(frame)
     frame:SetScript("OnHyperlinkClick", ClickHyperlink)
 
     if StaticPopupDialogs["RollTrackerClassic_AddNote"] == nil then
-        GameTooltip:HookScript("OnTooltipSetUnit", hooked_createTooltip)
+        HookUnitTooltip()
 
         StaticPopupDialogs["RollTrackerClassic_AddNote"] = {
             text = L.MsgAddNote,
@@ -677,19 +766,19 @@ local function initHyperlink(frame)
             countInvisibleLetters = true,
             editBoxWidth = 350,
             OnAccept = function(self)
-                RTC.Notes[EditEntry] = self.editBox:GetText()
+                RTC.Notes[EditEntry] = PopupEditBox(self):GetText()
             end,
             OnShow = function(self)
-                self.editBox:SetText(RTC.Notes[EditEntry] or "");
-                self.editBox:SetFocus();
+                PopupEditBox(self):SetText(RTC.Notes[EditEntry] or "");
+                PopupEditBox(self):SetFocus();
             end,
             OnHide = function(self)
-                ChatEdit_FocusActiveWindow();
-                self.editBox:SetText("");
+                FocusActiveChatWindow();
+                PopupEditBox(self):SetText("");
             end,
             EditBoxOnEnterPressed = function(self)
                 local parent = self:GetParent();
-                RTC.Notes[EditEntry] = parent.editBox:GetText()
+                RTC.Notes[EditEntry] = PopupEditBox(parent):GetText()
                 parent:Hide();
             end,
             EditBoxOnEscapePressed = function(self)
@@ -849,7 +938,10 @@ function RTC.Init()
 
     RTC.Tool.OnUpdate(RTC.Timers)
 
-    hooksecurefunc(LootHistoryFrame, "Hide", RTC.LootHistoryHide)
+    local lootHistoryFrame = GetLootHistoryFrame()
+    if lootHistoryFrame then
+        hooksecurefunc(lootHistoryFrame, "Hide", RTC.LootHistoryHide)
+    end
 
     initHyperlink(RollTrackerRollText)
     initHyperlink(RollTrackerClassicZLootFrame_MessageFrame)
@@ -860,10 +952,7 @@ local lastCountDown
 function RTC.Timers()
     if RTC.LootHistoryCloseTimer > 0 and RTC.LootHistoryCloseTimer < time() and
         RTC.LootHistoryCountHandle <= 0 then
-        if RTC.DB.AutoCloseLootRolls then
-            LootHistoryFrame_CollapseAll(LootHistoryFrame)
-            LootHistoryFrame:Hide()
-        end
+        if RTC.DB.AutoCloseLootRolls then RTC.LootHistoryClose() end
         RTC.LootHistoryCloseTimer = 0
         RTC.LootHistoryCountHandle = 0
     end
@@ -926,6 +1015,7 @@ local function Event_LOOT_ROLLS_COMPLETE(arg1)
 end
 
 local function Event_CHAT_MSG_LOOT(arg1)
+    if not IsReadable(arg1) then return end
     -- %s receives loot : %s|Hitem :%d :%d :%d :%d|h[%s]|h%s.
     local name, item = string.match(arg1, RTC.PatternLoot)
     if not name or not item then
@@ -937,6 +1027,7 @@ local function Event_CHAT_MSG_LOOT(arg1)
 end
 
 local function Event_CHAT_MSG_SYSTEM(arg1)
+    if not IsReadable(arg1) then return end
     for name, roll, low, high in string.gmatch(arg1, RTC.PatternRoll) do
         -- print(".."..name.." "..roll.." "..low.." "..high)
         RTC.AddRoll(name, roll, low, high)
@@ -944,6 +1035,7 @@ local function Event_CHAT_MSG_SYSTEM(arg1)
 end
 
 local function Event_Generic_CHAT_MSG(msg, name)
+    if not IsReadable(msg, name) then return end
     local dopass = false
     if RTC.PassTags[msg] then dopass = true end
     if dopass then
@@ -969,10 +1061,14 @@ local BACKDROP_TUTORIAL_16_16 = BACKDROP_TUTORIAL_16_16 or {
 }
 function RTC.OnLoad(self)
     -- print("rtc-onload")
-    if Mixin and BackdropTemplateMixin then
-        Mixin(self, BackdropTemplateMixin)
+    if RTC.FOREVER and RTC.ApplyForeverSkin then
+        RTC.ApplyForeverSkin(self)
+    else
+        if Mixin and BackdropTemplateMixin then
+            Mixin(self, BackdropTemplateMixin)
+        end
+        self:SetBackdrop(BACKDROP_TUTORIAL_16_16)
     end
-    self:SetBackdrop(BACKDROP_TUTORIAL_16_16)
     if self.SetResizeBounds then
         self:SetResizeBounds(194, 170)
     else
@@ -1188,7 +1284,7 @@ function RTC.UpdateRollList()
 
     RollTrackerRollText:SetText(rollText)
     RollTrackerClassicFrameStatusText:SetText(
-        string.format(L["MsgNbRolls"], table.getn(RTC.rollArray)))
+        string.format(L["MsgNbRolls"], #RTC.rollArray))
 
     if #RTC.rollArray == 0 and #RTC.rollUndoArray > 0 then
         RollTrackerClassicFrameClearButton:SetText(L["BtnUndo"])
@@ -1403,8 +1499,26 @@ function RTC.AddLoot(name, lootitem)
     local loot = {["name"] = name, ["class"] = class, ["timestamp"] = t}
     -- RTC.DB.DEBUGHELP_ITEM=lootitem
 
+    local itemString = string.match(lootitem, "|H(.+)%[")
+    if not itemString then return end
+
     loot.itemName, loot.itemLink, loot.itemRarity, loot.itemLevel, _, _, _, _, _, loot.itemIcon, loot.itemSellPrice, loot.itemType =
-        GetItemInfo(string.match(lootitem, "|H(.+)%["))
+        GetItemInfo(itemString)
+
+    if loot.itemLink == nil then
+        -- item not in the client cache yet: retry once it has been loaded
+        if not RTC._pendingLoot then RTC._pendingLoot = {} end
+        local key = name .. "#" .. lootitem
+        local itemID = tonumber(string.match(itemString, "item:(%d+)"))
+        if itemID and Item and Item.CreateFromItemID and not RTC._pendingLoot[key] then
+            RTC._pendingLoot[key] = true
+            Item:CreateFromItemID(itemID):ContinueOnItemLoad(function()
+                RTC._pendingLoot[key] = nil
+                RTC.AddLoot(name, lootitem)
+            end)
+        end
+        return
+    end
 
     loot.ItemCount = tonumber(string.match(lootitem, "|rx(%d+)") or 1)
 
@@ -1573,14 +1687,14 @@ function RTC.CSVList_AddItem(loot, hide)
     RTC.CSV_Transfer_Table["%iname%"] = loot.itemName
     RTC.CSV_Transfer_Table["%irarity%"] = loot.itemRarity
     RTC.CSV_Transfer_Table["%iraritytxt%"] =
-        _G["ITEM_QUALITY" .. loot.itemRarity .. "_DESC"]
+        _G["ITEM_QUALITY" .. (loot.itemRarity or "") .. "_DESC"] or ""
     RTC.CSV_Transfer_Table["%ilevel%"] = loot.itemLevel
     RTC.CSV_Transfer_Table["%iid%"] = string.match(loot.itemLink, "item:(.-):")
     RTC.CSV_Transfer_Table["%iprice%"] = loot.itemSellPrice
     RTC.CSV_Transfer_Table["%icount%"] = loot.ItemCount or 1
     RTC.CSV_Transfer_Table["%itype%"] = loot.itemType or 99
     RTC.CSV_Transfer_Table["%itypetxt%"] =
-        GetItemClassInfo(loot.itemType or 99) or ""
+        (loot.itemType and GetItemClassInfo(loot.itemType)) or ""
 
     local text = string.gsub(RTC.DB.LootTracker.CSVexport, "%%%w-%%",
                              RTC.CSV_Transfer_Table)
@@ -1618,4 +1732,93 @@ function RTC.BtnExport()
         Text = Text .. RTC.CSVList_AddItem(loot, true) .. "\n"
     end
     RTC.Tool.CopyPast(Text)
+end
+
+-- WoW: Forever look & feel
+-- Re-skins the main window with the modern flat panel used by the game's own
+-- windows (e.g. the Loot Rolls window) and moves the header buttons into the title bar.
+local function TitleIconButton(parent, texture, tooltip, onClick)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(16, 16)
+    button:SetFrameLevel(parent:GetFrameLevel() + 20)
+    button:SetNormalTexture(texture)
+    button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    button:SetScript("OnClick", onClick)
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(tooltip())
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    return button
+end
+
+function RTC.ApplyForeverSkin(self)
+    if not (C_XMLUtil and C_XMLUtil.GetTemplateInfo and
+        C_XMLUtil.GetTemplateInfo("DefaultPanelFlatTemplate")) then
+        if Mixin and BackdropTemplateMixin then
+            Mixin(self, BackdropTemplateMixin)
+        end
+        self:SetBackdrop(BACKDROP_TUTORIAL_16_16)
+        return
+    end
+
+    local panel = CreateFrame("Frame", nil, self, "DefaultPanelFlatTemplate")
+    panel:SetAllPoints()
+    panel:SetFrameLevel(self:GetFrameLevel())
+    self.ForeverPanel = panel
+    self:SetClampedToScreen(true)
+
+    -- title text inside the panel's title bar
+    local title = RollTrackerClassicMainWindowTitle
+    title:SetParent(panel.TitleContainer)
+    title:SetDrawLayer("OVERLAY")
+    title:ClearAllPoints()
+    title:SetPoint("TOP", panel.TitleContainer, "TOP", 0, -5)
+    title:SetPoint("LEFT", panel.TitleContainer, "LEFT", -24, 0)
+    title:SetPoint("RIGHT", panel.TitleContainer, "RIGHT", -30, 0)
+    title:SetJustifyH("LEFT")
+    title:SetWordWrap(false)
+
+    -- modern close button
+    local close = CreateFrame("Button", nil, self, "UIPanelCloseButtonDefaultAnchors")
+    close:SetFrameLevel(panel:GetFrameLevel() + 20)
+    close:SetScript("OnClick", function() RTC.BtnClose() end)
+    self.ForeverCloseButton = close
+
+    -- replace the old header buttons with flat icon buttons in the title bar
+    RollTrackerClassicMainWindowCloseButton:Hide()
+    RollTrackerClassicMainWindowSettingsButton:Hide()
+    RollTrackerClassicMainWindowLootTable:Hide()
+
+    local settings = TitleIconButton(panel, "Interface\\Buttons\\UI-OptionsButton",
+                                     function() return L["BtnConfig"] end,
+                                     function() RTC.BtnSettings() end)
+    settings:SetPoint("RIGHT", close, "LEFT", 0, 0)
+
+    local loot = TitleIconButton(panel, RTC.IconLoot,
+                                 function() return L["BtnLootRolls"] end,
+                                 function() RTC.LootHistoryShow() end)
+    loot:SetPoint("RIGHT", settings, "LEFT", -2, 0)
+end
+
+-- Addon compartment (the addon button list under the minimap calendar)
+function RollTrackerClassic_OnAddonCompartmentClick(_, buttonName, menuButton)
+    if buttonName == "RightButton" then
+        RTC.PopupMinimap(menuButton or UIParent)
+    elseif IsShiftKeyDown() then
+        RTC.LootHistoryShow()
+    else
+        RTC.ToggleWindow()
+    end
+end
+
+function RollTrackerClassic_OnAddonCompartmentEnter(_, menuButton)
+    GameTooltip:SetOwner(menuButton, "ANCHOR_LEFT")
+    RTC.MenuToolTip(GameTooltip)
+    GameTooltip:Show()
+end
+
+function RollTrackerClassic_OnAddonCompartmentLeave()
+    GameTooltip:Hide()
 end

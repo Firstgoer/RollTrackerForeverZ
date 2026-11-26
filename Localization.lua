@@ -134,6 +134,7 @@ function RTC.GetLocale()
         ["SlashCountdown"] = "Countdown <value> in seconds",
         ["SlashNotes"] = "Print all notes",
         ["SlashClearNotes"] = "Clear all notes",
+        ["MsgLootRollsNoClear"] = "The 'Loot Rolls' window is managed by the game on this client and can't be cleared.",
         ["AboutInfo"] = "Have you ever tried to roll the 'Onyxia Hide Backpack' in a raid? RTC collects all roll results and sorts them. Ever thought about whether you wanted something for your second-equip, but didn't know if somebody needed it? RTC can automatically open the Blizzard 'Loot rolls' window, where you can see immediately who needs or has greed.|nIn raid ever lost the overview, who got what? Again, RTC can help you. On request, it records all items, including a variable export function.",
         ["AboutSlashCommand"] = "<value> can be true, 1, enable, false, 0, disable. If <value> is omitted, the current status switches.",
         ["AboutUsage"] = "RTC will automatically open when someone rolls the dice. Double rolls or rolls outside the default range are ignored on request.|nBy default, the automatic opening of 'Loot Rolls' is disabled. Likewise, the 'Loot Tracker' must be turned on manually."
@@ -146,6 +147,6 @@ function RTC.GetLocale()
                  {__index = function(_, k) return "[" .. k .. "]" end})
     setmetatable(L, {__index = DefaultEnGB})
     L["AboutCredits"] =
-        "RollTracker Classic is an updated version of 'RollTracker Lite', originally by Jerry Chong - zanglang@gmail.com."
+        "RollTracker Classic is an updated version of 'RollTracker Lite', originally by Jerry Chong - zanglang@gmail.com.|nWoW: Forever port by Firstgoer, co-authored with Claude."
     return L
 end

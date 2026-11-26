@@ -1,16 +1,17 @@
-lightweight tag 6a8de29d4287b01b644b00a365607523f0f28a6f v2.0.0-mists-1
-Author:	GitHub <noreply@github.com>
-Date:	Sat Jul 19 13:09:19 2025 -0500
-
-commit d96e6e509702af0dcea42816c0638c2c593daf0b
-Author: Tyler Pentecost <tyler8806@gmail.com>
-Date:   Sat Jul 19 13:07:54 2025 -0500
-
-    fix: removed several Lua errors that could happen
-
-commit d96e6e509702af0dcea42816c0638c2c593daf0b
-Author: Tyler Pentecost <tyler8806@gmail.com>
-Date:   Sat Jul 19 13:07:54 2025 -0500
-
-    fix: removed several Lua errors that could happen
-
+2.2.0 - WoW: Forever support (Interface 16001, "Camelot")
+- New RollTrackerClassicZ_Camelot.toc for the WoW: Forever client
+- Fixed load error: the classic Loot Rolls window (LootHistoryFrame) does not exist
+  on Forever; RTC now drives the modern GroupLootHistoryFrame
+- Fixed load error: CharacterFrameTabButtonTemplate is not loaded on Forever;
+  tabs use PanelTabButtonTemplate there
+- Item info, item class and chat sending use C_Item / C_ChatInfo
+- Unit tooltips (player notes) use TooltipDataProcessor instead of OnTooltipSetUnit
+- Chat payloads that are secret during chat messaging lockdown (encounters, M+,
+  rated PvP) are skipped instead of erroring; announcements fall back to the
+  local chat frame while sending is locked
+- Loot tracker waits for uncached items instead of erroring
+- Note popup uses dialog:GetEditBox(); chat focus uses ChatFrameUtil
+- Hyperlinks in the loot list use SetItemRef
+- Forever look: modern flat panel, title bar, close button and tabs; right-click
+  menu uses the native Blizzard menu; addon compartment (minimap list) entry
+- Forever port by Firstgoer, co-authored with Claude

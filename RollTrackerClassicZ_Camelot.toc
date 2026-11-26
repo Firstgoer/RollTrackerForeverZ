@@ -1,12 +1,16 @@
 ## Interface: 16001
-## Title: RollTracker Classic Z
+## Title: RollTracker Forever Z
 ## Notes: Keeps tracks of /rolls, loot and more
-## Version: 2.1.0
+## Version: 2.2.0
 ## Category: Loot
 ## IconTexture: Interface/Buttons/UI-GroupLoot-Dice-Up
-## Author: GPI / Erytheia-Razorfen / Zolerii / Roadblock / Dosmod
+## Author: GPI / Erytheia-Razorfen / Zolerii / Roadblock / Dosmod / Firstgoer / Claude
 ## DefaultState: enabled
 ## SavedVariables: RollTrackerClassicZDB,RollTrackerClassicZLoot
+## AddonCompartmentFunc: RollTrackerClassic_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: RollTrackerClassic_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: RollTrackerClassic_OnAddonCompartmentLeave
+## X-Repository: https://github.com/Firstgoer/RollTrackerForeverZ
 
 embeds.xml
 

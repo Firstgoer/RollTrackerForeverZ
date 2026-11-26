@@ -468,9 +468,22 @@ local function PopupAddSubMenu(self,text,value)
 end
 
 local PopupLastWipeName
+local UseModernMenu = MenuUtil and MenuUtil.CreateContextMenu and true or false
+
 local function PopupWipe(self,WipeName)
 	self._Frame._GPIPRIVAT_Items.count=0
-	PopupDepth=nil	
+	PopupDepth=nil
+	if UseModernMenu then
+		if self._menu and self._menu:IsShown() then
+			self._menu:Close()
+			self._menu=nil
+			if WipeName == PopupLastWipeName then
+				return false
+			end
+		end
+		PopupLastWipeName=WipeName
+		return true
+	end
 	if UIDROPDOWNMENU_OPEN_MENU == self._Frame then
 		ToggleDropDownMenu(nil, nil, self._Frame, self._where, self._x, self._y)
 		if WipeName == PopupLastWipeName then
@@ -526,7 +539,45 @@ local function PopupCreate(frame, level, menuList)
 	end
 end
 
+-- Builds a native (Blizzard_Menu) context menu from the stored popup items
+local function ModernPopupBuild(frame, description, depth)
+	local items = frame._GPIPRIVAT_Items
+	for i=1,items.count do
+		local val=items[i]
+		if val.MenuDepth==depth then
+			local text, value, arg1, arg2 = val.text, val.value, val.arg1, val.arg2
+			if val.disabled=="MENU" then
+				local sub=description:CreateButton(text)
+				ModernPopupBuild(frame, sub, value)
+			elseif text=="" then
+				description:CreateDivider()
+			elseif type(value)=="table" then
+				local callback=frame._GPIPRIVAT_TableCallback
+				description:CreateCheckbox(text,
+					function() return value[arg1] and true or false end,
+					function()
+						value[arg1]=not value[arg1]
+						if callback then callback(value,arg1,value[arg1]) end
+					end)
+			elseif type(value)=="function" then
+				local button=description:CreateButton(text, function() value(arg1,arg2) end)
+				if val.disabled==true then button:SetEnabled(false) end
+			else
+				description:CreateButton(text, function() end)
+			end
+		end
+	end
+end
+
 local function PopupShow(self,where,x,y)
+	if UseModernMenu then
+		local owner = (type(where)=="table" and where) or nil
+		local frame = self._Frame
+		self._menu = MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+			ModernPopupBuild(frame, rootDescription, nil)
+		end)
+		return
+	end
 	where=where or "cursor" 
 	if UIDROPDOWNMENU_OPEN_MENU ~= self._Frame then 
 		UIDropDownMenu_Initialize(self._Frame, PopupCreate, "MENU")
@@ -551,6 +602,26 @@ function Tool.CreatePopup(TableCallback)
 end	
 
 -- TAB
+
+local function TemplateExists(name)
+	if C_XMLUtil and C_XMLUtil.GetTemplateInfo then
+		return C_XMLUtil.GetTemplateInfo(name) ~= nil
+	end
+	return true -- old clients: assume the classic template is there
+end
+
+local tabTemplate
+local function TabTemplate()
+	if tabTemplate == nil then
+		-- WoW: Forever / modern clients no longer load CharacterFrameTabButtonTemplate
+		if TemplateExists("CharacterFrameTabButtonTemplate") then
+			tabTemplate = "CharacterFrameTabButtonTemplate"
+		else
+			tabTemplate = "PanelTabButtonTemplate"
+		end
+	end
+	return tabTemplate
+end
 
 local function SelectTab(self)
 	if not self._gpi_combatlock or not InCombatLockdown() then 
@@ -626,7 +697,8 @@ function Tool.AddTab(frame,name,tabFrame,combatlockdown)
 	frame.numTabs=frame.numTabs and frame.numTabs+1 or 1
 	if frame.Tabs==nil then frame.Tabs={} end
 	
-	frame.Tabs[frame.numTabs]=CreateFrame("Button",frameName.."Tab"..frame.numTabs, frame, "CharacterFrameTabButtonTemplate")
+	local modernTab = TabTemplate() == "PanelTabButtonTemplate"
+	frame.Tabs[frame.numTabs]=CreateFrame("Button",frameName.."Tab"..frame.numTabs, frame, TabTemplate())
 	frame.Tabs[frame.numTabs]:SetID(frame.numTabs)
 	frame.Tabs[frame.numTabs]:SetText(name)
 	frame.Tabs[frame.numTabs]:SetScript("OnClick",SelectTab)	
@@ -634,7 +706,13 @@ function Tool.AddTab(frame,name,tabFrame,combatlockdown)
 	frame.Tabs[frame.numTabs].content=tabFrame
 	tabFrame:Hide()
 	
-	if frame.numTabs==1 then
+	if modernTab then
+		if frame.numTabs==1 then
+			frame.Tabs[frame.numTabs]:SetPoint("TOPLEFT",frame,"BOTTOMLEFT",8,2)
+		else
+			frame.Tabs[frame.numTabs]:SetPoint("LEFT",frame.Tabs[frame.numTabs-1],"RIGHT",3,0)
+		end
+	elseif frame.numTabs==1 then
 		frame.Tabs[frame.numTabs]:SetPoint("TOPLEFT",frame,"BOTTOMLEFT",5,4)
 	else
 		frame.Tabs[frame.numTabs]:SetPoint("TOPLEFT",frame.Tabs[frame.numTabs-1],"TOPRIGHT",-14,0)

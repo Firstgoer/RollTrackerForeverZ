@@ -1,5 +1,6 @@
-# RollTracker Classic Z
-This project is an addon for World of Warcraft Classic Era and Mists of Pandaria Classic.
+# RollTracker Forever Z
+This project is an addon for World of Warcraft: Forever (interface 16001), Classic Era and Mists of Pandaria Classic.
+The WoW: Forever port lives at https://github.com/Firstgoer/RollTrackerForeverZ.
 It is a continuation of RollTracker Classic, which had been marked as abandoned on CurseForge.
 
 Most of the credit for this addon goes to its original authors, and the original project can be found [here](https://www.curseforge.com/wow/addons/rolltracker-classic-z).
@@ -17,7 +18,7 @@ This command will clear the rolls.
 This command will clear the loot.
 
 ### /rtc clear lootrolls
-This command will clear the 'Loot Rolls'.
+This command will clear the 'Loot Rolls' (classic clients only; on WoW: Forever the game manages that window).
 
 ### /rtc undo rolls
 This command will recover the last rolls.
@@ -58,4 +59,9 @@ This command will open the Main window.
 - Simplified Chinese translation by kokpk
 - Baudzilla for the graphics/idea of the resize-code
 - RollTracker Classic is an updated version of "RollTracker Lite", originally by Jerry Chong - zanglang@gmail.com.
+- WoW: Forever port by Firstgoer, co-authored with Claude.
 - Mists Classic maintenance by [MrFIXIT](https://www.curseforge.com/members/mrfixlt/followers).
+
+## WoW: Forever notes
+- While the game's chat messaging lockdown is active (boss encounters, Mythic+, rated PvP), chat messages are hidden from addons and addons may not send chat. RTC can't see /roll results during that time and prints its announcements only to your own chat window.
+- The addon folder must stay named `RollTrackerClassicZ` so your saved settings and loot history keep working.
