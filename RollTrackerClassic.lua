@@ -934,7 +934,10 @@ function RTC.Init()
     RTC.MinimapButton.Init(RTC.DB.Minimap, RTC.IconDice, RTC.MenuButtonClick,
                            RTC.Title .. "\n" .. L["MsgTooltip"])
 
-    RTC.Tool.EnableSize(RollTrackerClassicMainWindow, 8, nil, RTC.SaveAnchors)
+    if not RTC.ForeverRollList then
+        -- classic clients: invisible resize edges; Forever uses the game's handles
+        RTC.Tool.EnableSize(RollTrackerClassicMainWindow, 8, nil, RTC.SaveAnchors)
+    end
     RTC.Tool.EnableMoving(RollTrackerClassicMainWindow, RTC.SaveAnchors)
 
     RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabRoll"],
@@ -2302,18 +2305,26 @@ local function BuildTimerBar(list)
     list.Timer = timer
 end
 
--- the game's resize handle under the window (height); edges still resize width
-local function BuildResizeHandle(list)
-    local window = RollTrackerClassicMainWindow
+-- the game's loot-roll resize handles: one under the window (height) and the
+-- same art turned on its side at the right edge (width)
+local function ResizeHandle(window, point, vertical)
     local handle = CreateFrame("Button", nil, window)
-    handle:SetSize(32, 12)
-    handle:SetPoint("TOP", window, "BOTTOM", 0, 3)
+    if vertical then handle:SetSize(12, 32) else handle:SetSize(32, 12) end
     local tex = handle:CreateTexture(nil, "OVERLAY")
     tex:SetAtlas("lootroll-resizehandle")
-    tex:SetAllPoints()
-    handle:SetHighlightAtlas("lootroll-resizehandle", "ADD")
+    tex:SetSize(32, 12)
+    tex:SetPoint("CENTER")
+    local glow = handle:CreateTexture(nil, "HIGHLIGHT")
+    glow:SetAtlas("lootroll-resizehandle")
+    glow:SetBlendMode("ADD")
+    glow:SetSize(32, 12)
+    glow:SetPoint("CENTER")
+    if vertical then
+        tex:SetRotation(math.pi / 2)
+        glow:SetRotation(math.pi / 2)
+    end
     handle:SetScript("OnMouseDown", function()
-        window:StartSizing("BOTTOM", true)
+        window:StartSizing(point, true)
     end)
     handle:SetScript("OnMouseUp", function()
         window:StopMovingOrSizing()
@@ -2321,7 +2332,15 @@ local function BuildResizeHandle(list)
     end)
     handle.isForeverChrome = true
     tinsert(window.ForeverChrome, handle)
-    list.ResizeHandle = handle
+    return handle
+end
+
+local function BuildResizeHandle(list)
+    local window = RollTrackerClassicMainWindow
+    list.ResizeHandle = ResizeHandle(window, "BOTTOM", false)
+    list.ResizeHandle:SetPoint("TOP", window, "BOTTOM", 0, 3)
+    list.ResizeHandleWidth = ResizeHandle(window, "RIGHT", true)
+    list.ResizeHandleWidth:SetPoint("LEFT", window, "RIGHT", -3, 0)
 end
 
 -- keep the handle clear of the tabs when the loot tracker shows them

@@ -29,7 +29,8 @@
   "Not rolled" moved into the more-menu and a clickable "N waiting" status
 - Guild rank shown in a small dim font after the name (truncated first)
 - Countdown shows the game's loot roll timer bar with seconds left
-- The game's resize handle under the window
+- The game's resize handles: under the window (height) and on the right edge
+  (width); the old invisible resize edges are gone on Forever
 - Option: in a group, show [Announce] and the roll menu only to the leader
   and assistants (others get [Roll][Off Spec][clear][Pass])
 - Pass button takes about a third of the row (Roll keeps two thirds) and shows
