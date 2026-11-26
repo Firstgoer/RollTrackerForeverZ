@@ -2134,8 +2134,20 @@ local function BuildActionBar(list)
     SetTooltip(menu, function() return L["BtnMore"] end)
     list.MenuButton = menu
 
+    -- countdown (raid leader / assistants): click starts, click again stops
+    local cd = CreateFrame("Button", nil, RollTrackerClassicFrame, "UIPanelButtonTemplate")
+    IconButton(cd, "worldquest-icon-clock")
+    cd.ForeverIcon:SetSize(16, 16)
+    cd:SetScript("OnClick", function()
+        if RTC.Countdown then RTC.StopCountdown() else RTC.StartCountdown() end
+    end)
+    SetTooltip(cd, function()
+        if RTC.Countdown then return L["TipStopCountdown"] end
+        return L["MenuCountdown"] .. " (" .. (tonumber(RTC.DB.DefaultCD) or 0) .. ")"
+    end)
+    list.CountdownButton = cd
+
     ann:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2 + BUTTON_HEIGHT + GAP)
-    ann:SetPoint("RIGHT", menu, "LEFT", -GAP, 0)
 
     -- "2 rolled" / "3 waiting": placed in the list header by BuildListHeader
     local status = RollTrackerClassicFrameStatusText
@@ -2198,6 +2210,12 @@ local function LayoutActionBar()
     local showLeader = RTC.ShowLeaderRow()
     ann:SetShown(showLeader)
     list.MenuButton:SetShown(showLeader)
+    local isLead = not IsInGroup() or UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")
+    local showCountdown = showLeader and isLead
+    list.CountdownButton:SetShown(showCountdown)
+    list.CountdownButton:ClearAllPoints()
+    list.CountdownButton:SetPoint("RIGHT", list.MenuButton, "LEFT", -GAP, 0)
+    ann:SetPoint("RIGHT", showCountdown and list.CountdownButton or list.MenuButton, "LEFT", -GAP, 0)
 
     for _, b in ipairs({roll, off, clear}) do b:ClearAllPoints() end
     roll:SetPoint("BOTTOMLEFT", RollTrackerClassicFrameHelperButton, "TOPLEFT", 0, 2)

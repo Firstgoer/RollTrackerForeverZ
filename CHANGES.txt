@@ -31,6 +31,8 @@
 - "N rolled" / "N waiting" moved into a header at the top of the roll list
   (the countdown bar appears there too); re-rolls no longer count twice
 - Countdown shows the game's loot roll timer bar with seconds left
+- Countdown button (clock) next to [Announce] for the raid leader and assistants
+  (always shown when solo); click to start, click again to stop
 - The game's resize handles: under the window (height) and on the right edge
   (width); the old invisible resize edges are gone on Forever
 - Option: in a group, show [Announce] and the roll menu only to the leader

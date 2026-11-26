@@ -38,6 +38,7 @@ RTC.Locales.ruRU = {
     ["TxtNoRolls"] = "Бросков пока нет",
     ["TxtNoRollsHint"] = "/roll или кнопка «Бросок»",
     ["MenuCountdown"] = "Начать отсчёт",
+    ["TipStopCountdown"] = "Остановить отсчёт",
     ["MenuAnnounceNotRolled"] = "Напомнить, кто не бросил",
     ["BtnMore"] = "Другие действия",
     ["TipClear"] = "Очистить броски",

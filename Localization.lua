@@ -141,6 +141,7 @@ function RTC.GetLocale()
         ["TxtNoRolls"] = "No rolls yet",
         ["TxtNoRollsHint"] = "/roll or press Roll",
         ["MenuCountdown"] = "Start countdown",
+        ["TipStopCountdown"] = "Stop countdown",
         ["MenuAnnounceNotRolled"] = "Announce who has not rolled",
         ["BtnMore"] = "More actions",
         ["TipClear"] = "Clear rolls",
