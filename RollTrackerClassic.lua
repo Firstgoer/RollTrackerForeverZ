@@ -2203,6 +2203,25 @@ local function LayoutActionBar()
     end
     roll:SetPoint("RIGHT", rightOf, "LEFT", -GAP, 0)
 
+    -- Pass gets about a third of the row (Roll keeps the larger share);
+    -- with enough room it shows its label next to the icon
+    local w = RollTrackerClassicFrameHelperButton:GetWidth() or 0
+    local reserved = GAP
+    if RTC.DB.MainAndOffSpecMode then reserved = reserved + off:GetWidth() + GAP end
+    if not showLeader then reserved = reserved + BUTTON_HEIGHT + GAP end
+    local passWidth = math.max(BUTTON_HEIGHT, math.floor((w - reserved) / 3))
+    pass:SetWidth(passWidth)
+    if passWidth >= 60 then
+        pass.ForeverIcon:Hide()
+        pass:SetText(string.format(RTC.TxtEscapePicture, RTC.IconPass) .. " " .. L["BtnPass"])
+    else
+        pass.ForeverIcon:Show()
+        pass:SetText("")
+    end
+    if showLeader then
+        list.MenuButton:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", -(BUTTON_HEIGHT + GAP), GAP)
+    end
+
     -- list ends above the top button row
     list.Inset:SetPoint("BOTTOM", showLeader and ann or roll, "TOP", 0, 4)
 end
@@ -2395,8 +2414,8 @@ function RTC.LocalizeForeverLayout()
     RollTrackerClassicFrameRollButton:SetText(
         string.format(RTC.TxtEscapePicture, RTC.IconDice) .. " " .. L["BtnRoll"])
     RollTrackerClassicFrameOffSpecButton:SetText(L["BtnOffSpec"])
-    RollTrackerClassicFramePassButton:SetText("")
     RollTrackerClassicFrameClearButton:SetText("")
+    RTC.LayoutForeverActionBar()
 end
 
 function RTC.ApplyForeverSkin(self)

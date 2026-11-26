@@ -32,6 +32,8 @@
 - The game's resize handle under the window
 - Option: in a group, show [Announce] and the roll menu only to the leader
   and assistants (others get [Roll][Off Spec][clear][Pass])
+- Pass button takes about a third of the row (Roll keeps two thirds) and shows
+  its label when there is room
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude
