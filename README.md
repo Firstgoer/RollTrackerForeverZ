@@ -54,7 +54,7 @@ This command will enable or disable loot tracking.
 This command will open the Main window.
 
 ## Credits
-- Russian translation by tierggg and Hubbotu
+- Russian translation by tierggg and Hubbotu; WoW: Forever Russian translation by Firstgoer and Claude
 - Korean translation by BattleE, classe82
 - Simplified Chinese translation by kokpk
 - Baudzilla for the graphics/idea of the resize-code

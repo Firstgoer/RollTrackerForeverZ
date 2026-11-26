@@ -6,23 +6,29 @@
 		<Layers>
 			<Layer level="BACKGROUND">
 				<Texture parentKey="Stripe" setAllPoints="true" hidden="true">
-					<Color r="1" g="1" b="1" a="0.05" />
-				</Texture>
-				<Texture parentKey="WinnerGlow" setAllPoints="true" hidden="true">
-					<Color r="1" g="0.82" b="0" a="0.16" />
+					<Color r="1" g="1" b="1" a="0.04" />
 				</Texture>
 			</Layer>
+			<Layer level="BORDER">
+				<Texture parentKey="WinnerBar" atlas="groupfinder-highlightbar-yellow" alphaMode="ADD" alpha="0.5" setAllPoints="true" hidden="true" />
+			</Layer>
 			<Layer level="ARTWORK">
-				<FontString parentKey="Roll" inherits="GameFontHighlightLarge" justifyH="RIGHT">
-					<Size x="34" y="20" />
+				<FontString parentKey="Roll" inherits="GameFontHighlightMed2" justifyH="RIGHT">
+					<Size x="28" y="20" />
 					<Anchors>
-						<Anchor point="LEFT" x="0" y="0" />
+						<Anchor point="LEFT" x="2" y="0" />
 					</Anchors>
 				</FontString>
 				<Texture parentKey="ClassIcon">
-					<Size x="16" y="16" />
+					<Size x="14" y="14" />
 					<Anchors>
-						<Anchor point="LEFT" relativeKey="$parent.Roll" relativePoint="RIGHT" x="6" y="0" />
+						<Anchor point="LEFT" relativeKey="$parent.Roll" relativePoint="RIGHT" x="5" y="0" />
+					</Anchors>
+				</Texture>
+				<Texture parentKey="Check" atlas="lootroll-icon-checkmark" hidden="true">
+					<Size x="14" y="14" />
+					<Anchors>
+						<Anchor point="RIGHT" x="-4" y="0" />
 					</Anchors>
 				</Texture>
 				<FontString parentKey="Info" inherits="GameFontDisableSmall" justifyH="RIGHT">

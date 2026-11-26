@@ -10,6 +10,7 @@
 
 embeds.xml
 
+Localization_ruRU.lua
 Localization.lua
 RollTrackerClassic.lua
 RollTrackerClassic.xml
