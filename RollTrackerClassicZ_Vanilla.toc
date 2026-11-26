@@ -1,0 +1,15 @@
+## Interface: 11508
+## Title: RollTracker Classic Z
+## Notes: Keeps tracks of /rolls, loot and more
+## Version: 2.1.0
+## Category: Loot
+## IconTexture: Interface/Buttons/UI-GroupLoot-Dice-Up
+## Author: GPI / Erytheia-Razorfen / Zolerii / Roadblock / Dosmod
+## DefaultState: enabled
+## SavedVariables: RollTrackerClassicZDB,RollTrackerClassicZLoot
+
+embeds.xml
+
+Localization.lua
+RollTrackerClassic.lua
+RollTrackerClassic.xml
