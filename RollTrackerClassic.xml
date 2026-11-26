@@ -1,5 +1,56 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\..\..\Interface\FrameXML\UI.xsd">
+	<!-- WoW: Forever roll list row (used by the modern ScrollBox list) -->
+	<Button name="RollTrackerForeverZRollRowTemplate" virtual="true">
+		<Size x="200" y="20" />
+		<Layers>
+			<Layer level="BACKGROUND">
+				<Texture parentKey="Stripe" setAllPoints="true" hidden="true">
+					<Color r="1" g="1" b="1" a="0.05" />
+				</Texture>
+				<Texture parentKey="WinnerGlow" setAllPoints="true" hidden="true">
+					<Color r="1" g="0.82" b="0" a="0.16" />
+				</Texture>
+			</Layer>
+			<Layer level="ARTWORK">
+				<FontString parentKey="Roll" inherits="GameFontHighlightLarge" justifyH="RIGHT">
+					<Size x="34" y="20" />
+					<Anchors>
+						<Anchor point="LEFT" x="0" y="0" />
+					</Anchors>
+				</FontString>
+				<Texture parentKey="ClassIcon">
+					<Size x="16" y="16" />
+					<Anchors>
+						<Anchor point="LEFT" relativeKey="$parent.Roll" relativePoint="RIGHT" x="6" y="0" />
+					</Anchors>
+				</Texture>
+				<FontString parentKey="Info" inherits="GameFontDisableSmall" justifyH="RIGHT">
+					<Anchors>
+						<Anchor point="RIGHT" x="-4" y="0" />
+					</Anchors>
+				</FontString>
+				<FontString parentKey="Name" inherits="GameFontHighlight" justifyH="LEFT" wordwrap="false">
+					<Anchors>
+						<Anchor point="LEFT" relativeKey="$parent.ClassIcon" relativePoint="RIGHT" x="4" y="0" />
+						<Anchor point="RIGHT" relativeKey="$parent.Info" relativePoint="LEFT" x="-4" y="0" />
+					</Anchors>
+				</FontString>
+				<FontString parentKey="Header" inherits="GameFontNormalSmall" justifyH="LEFT" hidden="true">
+					<Anchors>
+						<Anchor point="LEFT" x="6" y="0" />
+						<Anchor point="RIGHT" x="-6" y="0" />
+					</Anchors>
+				</FontString>
+			</Layer>
+			<Layer level="HIGHLIGHT">
+				<Texture parentKey="Highlight" setAllPoints="true">
+					<Color r="1" g="1" b="1" a="0.08" />
+				</Texture>
+			</Layer>
+		</Layers>
+	</Button>
+
 	<Button name="RollTrackerClassic_MiniButton" inherits="UIPanelButtonTemplate" virtual="true">
 		<NormalFont style="GameFontNormalSmall" />
 		<HighlightFont style="GameFontHighlightSmall" />

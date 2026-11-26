@@ -1293,6 +1293,8 @@ function RTC.UpdateRollList()
     else
         RollTrackerClassicFrameClearButton:SetText(L["BtnClear"])
     end
+
+    if RTC.ForeverRollList then RTC.UpdateForeverRollList() end
 end
 
 function RTC.ClearRolls(doMsg)
@@ -1806,6 +1808,290 @@ local function ModernizeScrollFrame(scrollFrame)
     scrollFrame.ModernScrollBar = bar
 end
 
+-- WoW: Forever roll list, inset panels and button bar
+local ROW_HEIGHT, HEADER_HEIGHT = 20, 16
+
+local function ClassRGB(class)
+    local c = class and RAID_CLASS_COLORS[class]
+    if c then return c.r, c.g, c.b end
+end
+
+local function RowOnEnter(row)
+    local d = row.data
+    if d and d.name then EnterHyperlink(nil, "player:" .. d.name) end
+end
+
+local function RowOnClick(row)
+    local d = row.data
+    if d and d.name then RTC.EditNote(d.name) end
+end
+
+local function InitRollRow(row, d)
+    row.data = d
+    local isHeader = d.kind == "header"
+    row.Header:SetShown(isHeader)
+    row.Roll:SetShown(not isHeader)
+    row.Name:SetShown(not isHeader)
+    row.Info:SetShown(not isHeader)
+    row.ClassIcon:Hide()
+    row.Stripe:SetShown(not isHeader and d.stripe == true)
+    row.WinnerGlow:SetShown(d.winner == true)
+    row:SetScript("OnEnter", RowOnEnter)
+    row:SetScript("OnLeave", GameTooltip_Hide)
+    row:SetScript("OnClick", RowOnClick)
+
+    if isHeader then
+        row.Header:SetText(d.text)
+        row:EnableMouse(false)
+        return
+    end
+    row:EnableMouse(true)
+
+    local cheat = RTC.DB.ColorCheat
+    if d.kind == "missing" then
+        row.Roll:SetText("-")
+        row.Roll:SetTextColor(0.5, 0.5, 0.5)
+    else
+        row.Roll:SetText(d.roll)
+        if d.winner then
+            row.Roll:SetTextColor(1, 0.82, 0)
+        elseif d.cheat then
+            row.Roll:SetTextColor(cheat.r, cheat.g, cheat.b)
+        else
+            row.Roll:SetTextColor(1, 1, 1)
+        end
+    end
+
+    if d.class and RTC.DB.ShowClassIcon and GetClassAtlas then
+        row.ClassIcon:SetAtlas(GetClassAtlas(string.lower(d.class)))
+        row.ClassIcon:Show()
+        row.ClassIcon:SetDesaturated(d.kind == "missing")
+    end
+
+    local name = d.name
+    if RTC.DB.ShowGuildRank and d.rank and d.rank ~= "" then
+        name = name .. " |cff808080" .. d.rank .. "|r"
+    end
+    row.Name:SetText(name)
+    local r, g, b = ClassRGB(d.class)
+    if not (r and RTC.DB.ColorName) then r, g, b = 1, 1, 1 end
+    if d.kind == "missing" then
+        row.Name:SetTextColor(r * 0.6, g * 0.6, b * 0.6)
+    else
+        row.Name:SetTextColor(r, g, b)
+    end
+
+    local info = ""
+    if d.kind == "roll" then
+        if d.low ~= 1 or d.high ~= 100 then
+            info = string.format("%d-%d", d.low, d.high)
+        end
+        if d.count > 1 then
+            info = info .. (info ~= "" and " " or "") .. string.format("x%d", d.count)
+        end
+    end
+    row.Info:SetText(info)
+    if d.cheat then
+        row.Info:SetTextColor(cheat.r, cheat.g, cheat.b)
+    else
+        row.Info:SetTextColor(0.6, 0.6, 0.6)
+    end
+end
+
+-- winners exactly like RTC.RollAnnounce picks them
+local function MarkWinners(entries, accept)
+    local max = -1
+    for _, e in ipairs(entries) do
+        if accept(e) and e.roll > max then max = e.roll end
+    end
+    local any = false
+    if max > 0 then
+        for _, e in ipairs(entries) do
+            if accept(e) and e.roll == max then
+                e.winner = true
+                any = true
+            end
+        end
+    end
+    return any
+end
+
+function RTC.UpdateForeverRollList()
+    local list = RTC.ForeverRollList
+    if not list or not RTC.DB then return end
+    local party, partyName = RTC.GetPlayerList()
+
+    local function entry(roll)
+        local p = partyName[roll.Name]
+        return {
+            kind = "roll", name = roll.Name, roll = roll.Roll, low = roll.Low,
+            high = roll.High, count = roll.Count,
+            class = p and p.class, rank = p and p.rank or "",
+            cheat = (roll.Low ~= 1 or roll.High ~= 100) or roll.Count > 1
+        }
+    end
+
+    -- rollArray is sorted ascending; show highest first
+    local rolls = {}
+    for i = #RTC.rollArray, 1, -1 do tinsert(rolls, entry(RTC.rollArray[i])) end
+
+    local data = {}
+    local function addSection(title, entries)
+        if title then tinsert(data, {kind = "header", text = title}) end
+        for i, e in ipairs(entries) do
+            e.stripe = (i % 2 == 0)
+            tinsert(data, e)
+        end
+    end
+
+    local ignoreDouble = RTC.DB.AnnounceIgnoreDouble
+    local function okCount(e) return ignoreDouble == false or e.count == 1 end
+
+    if RTC.DB.MainAndOffSpecMode then
+        local ms, offspec = {}, {}
+        for _, e in ipairs(rolls) do
+            if e.roll > 0 and e.high == 100 then
+                tinsert(ms, e)
+            elseif e.roll == 0 or e.high == 99 then
+                tinsert(offspec, e)
+            end
+        end
+        if not MarkWinners(ms, function(e) return okCount(e) and e.low == 1 end) then
+            MarkWinners(offspec, function(e) return okCount(e) and (e.roll == 0 or (e.low == 1 and e.high == 99)) end)
+        end
+        addSection(L["TxTMainSpec"], ms)
+        addSection(L["TxTOffSpec"], offspec)
+    else
+        local rejectOut = RTC.DB.AnnounceRejectOutBounds
+        MarkWinners(rolls, function(e)
+            return okCount(e) and e.roll ~= 0 and
+                       (rejectOut == false or (e.low == 1 and e.high == 100))
+        end)
+        addSection(nil, rolls)
+    end
+
+    if IsInGroup() then
+        local missing = {}
+        for _, p in ipairs(party) do
+            if RTC.rollNames[p.name] == nil or RTC.rollNames[p.name] == 0 then
+                tinsert(missing, {kind = "missing", name = p.name, class = p.class, rank = p.rank})
+            end
+        end
+        if #missing > 0 then addSection(L["BtnNotRolled"], missing) end
+    end
+
+    list.ScrollBox:SetDataProvider(CreateDataProvider(data),
+                                   ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
+end
+
+local function AddInset(parent, region, left, top, right, bottom)
+    local inset = CreateFrame("Frame", nil, parent, "InsetFrameTemplate")
+    inset:SetPoint("TOPLEFT", region, "TOPLEFT", left, top)
+    inset:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT", right, bottom)
+    return inset
+end
+
+local FOREVER_BUTTONS = {
+    "RollTrackerClassicFrameRollButton", "RollTrackerClassicFrameOffSpecButton",
+    "RollTrackerClassicFramePassButton", "RollTrackerClassicFrameAnnounceButton",
+    "RollTrackerClassicFrameNotRolledButton", "RollTrackerClassicFrameClearButton",
+    "RollTrackerForeverZLootFrameClearButton", "RollTrackerClassicCSVFrameExportButton"
+}
+local BUTTON_HEIGHT, GAP = 22, 2
+
+local function StyleButtons()
+    for _, name in ipairs(FOREVER_BUTTONS) do
+        local b = _G[name]
+        b:SetHeight(BUTTON_HEIGHT)
+        b:SetNormalFontObject(GameFontNormal)
+        b:SetHighlightFontObject(GameFontHighlight)
+        b:SetDisabledFontObject(GameFontDisable)
+    end
+
+    local helper = RollTrackerClassicFrameHelperButton
+    local roll, off, pass = RollTrackerClassicFrameRollButton,
+                            RollTrackerClassicFrameOffSpecButton,
+                            RollTrackerClassicFramePassButton
+    local ann, notr, clear = RollTrackerClassicFrameAnnounceButton,
+                             RollTrackerClassicFrameNotRolledButton,
+                             RollTrackerClassicFrameClearButton
+    for _, b in ipairs({roll, off, pass, ann, notr, clear}) do b:ClearAllPoints() end
+    roll:SetPoint("BOTTOMLEFT", helper, "TOPLEFT", 0, 2)
+    pass:SetPoint("BOTTOMRIGHT", helper, "TOPRIGHT", 0, 2)
+    off:SetPoint("LEFT", roll, "RIGHT", GAP, 0)
+    off:SetPoint("RIGHT", pass, "LEFT", -GAP, 0)
+    ann:SetPoint("BOTTOMLEFT", roll, "TOPLEFT", 0, GAP)
+    clear:SetPoint("BOTTOMRIGHT", pass, "TOPRIGHT", 0, GAP)
+    notr:SetPoint("LEFT", ann, "RIGHT", GAP, 0)
+    notr:SetPoint("RIGHT", clear, "LEFT", -GAP, 0)
+
+    -- loot / csv tab buttons sit on the status line
+    local lootClear = RollTrackerForeverZLootFrameClearButton
+    lootClear:ClearAllPoints()
+    lootClear:SetPoint("BOTTOMLEFT", RollTrackerForeverZLootFrameStatusText, "TOPLEFT", 0, 2)
+    lootClear:SetPoint("BOTTOMRIGHT", RollTrackerForeverZLootFrameStatusText, "TOPRIGHT", 0, 2)
+    local export = RollTrackerClassicCSVFrameExportButton
+    export:ClearAllPoints()
+    export:SetPoint("BOTTOMLEFT", RollTrackerClassicCSVFrame, "BOTTOMLEFT", 0, 0)
+    export:SetPoint("BOTTOMRIGHT", RollTrackerClassicCSVFrame, "BOTTOMRIGHT", 0, 0)
+    RollTrackerForeverZLootFrame_MessageFrame:SetPoint("BOTTOMRIGHT", lootClear, "TOPRIGHT", -4, 8)
+    RollTrackerClassicCSVFrame_MessageFrame:SetPoint("BOTTOMRIGHT", export, "TOPRIGHT", -4, 8)
+end
+
+-- keep the gaps when RTC resizes the buttons (2 or 3 per row)
+local OriginalResizeButtons = RTC.ResizeButtons
+function RTC.ResizeButtons()
+    if not RTC.DB then return end
+    OriginalResizeButtons()
+    if not RTC.ForeverRollList then return end
+    local w = RollTrackerClassicFrameHelperButton:GetWidth()
+    local bw = RTC.DB.MainAndOffSpecMode and (w - 2 * GAP) / 3 or (w - GAP) / 2
+    RollTrackerClassicFrameRollButton:SetWidth(bw)
+    RollTrackerClassicFramePassButton:SetWidth(bw)
+    bw = RTC.DB.ShowNotRolled and (w - 2 * GAP) / 3 or (w - GAP) / 2
+    RollTrackerClassicFrameAnnounceButton:SetWidth(bw)
+    RollTrackerClassicFrameClearButton:SetWidth(bw)
+end
+
+function RTC.BuildForeverLayout()
+    if not (CreateScrollBoxListLinearView and ScrollUtil and
+        ScrollUtil.InitScrollBoxListWithScrollBar and CreateDataProvider) then
+        ModernizeScrollFrame(RollTrackerClassicFrameRollScrollFrame)
+        return
+    end
+
+    StyleButtons()
+
+    -- roll list: inset + ScrollBox rows instead of the text block
+    RollTrackerClassicFrameRollScrollFrame:Hide()
+    local inset = CreateFrame("Frame", nil, RollTrackerClassicFrame, "InsetFrameTemplate")
+    inset:SetPoint("TOPLEFT", RollTrackerClassicFrame, "TOPLEFT", -2, 2)
+    inset:SetPoint("BOTTOMRIGHT", RollTrackerClassicFrameClearButton, "TOPRIGHT", 2, 4)
+
+    local box = CreateFrame("Frame", nil, inset, "WowScrollBoxList")
+    box:SetPoint("TOPLEFT", inset, "TOPLEFT", 4, -4)
+    box:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -14, 4)
+    local bar = CreateFrame("EventFrame", nil, inset, "MinimalScrollBar")
+    bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 4, 0)
+    bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 4, 0)
+
+    local view = CreateScrollBoxListLinearView()
+    view:SetElementInitializer("RollTrackerForeverZRollRowTemplate", InitRollRow)
+    view:SetElementExtentCalculator(function(_, d)
+        return d.kind == "header" and HEADER_HEIGHT or ROW_HEIGHT
+    end)
+    ScrollUtil.InitScrollBoxListWithScrollBar(box, bar, view)
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then
+        ScrollUtil.AddManagedScrollBarVisibilityBehavior(box, bar)
+    end
+
+    RTC.ForeverRollList = {Inset = inset, ScrollBox = box, ScrollBar = bar}
+
+    -- loot and csv tabs: put the message frames on inset panels
+    AddInset(RollTrackerForeverZLootFrame, RollTrackerForeverZLootFrame_MessageFrame, -4, 4, 4, -4)
+    AddInset(RollTrackerClassicCSVFrame, RollTrackerClassicCSVFrame_MessageFrame, -4, 4, 4, -4)
+end
+
 function RTC.ApplyForeverSkin(self)
     if not (C_XMLUtil and C_XMLUtil.GetTemplateInfo and
         C_XMLUtil.GetTemplateInfo("DefaultPanelFlatTemplate")) then
@@ -1857,7 +2143,7 @@ function RTC.ApplyForeverSkin(self)
     loot:SetPoint("RIGHT", settings, "LEFT", -2, 0)
     tinsert(self.ForeverChrome, loot)
 
-    ModernizeScrollFrame(RollTrackerClassicFrameRollScrollFrame)
+    RTC.BuildForeverLayout()
 
     RTC.LayerForeverSkin()
 end

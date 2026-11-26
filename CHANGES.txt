@@ -15,6 +15,9 @@
 - Hyperlinks in the loot list use SetItemRef
 - Fixed Forever skin layering: border/title bar no longer cover the window content,
   close and title-bar buttons; roll list uses the modern thin scroll bar
+- Forever look: roll list rebuilt as rows (class icon, name, roll; winner highlighted,
+  striped rows, main/off spec and not-rolled sections) on an inset panel; loot and
+  CSV tabs on inset panels; larger, evenly spaced button bar
 - Forever look: modern flat panel, title bar, close button and tabs; right-click
   menu uses the native Blizzard menu; addon compartment (minimap list) entry
 - Forever port by Firstgoer, co-authored with Claude
