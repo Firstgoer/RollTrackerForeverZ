@@ -336,7 +336,15 @@ function RTC.BtnOffSpec()
     RandomRoll(1, 99)
 end
 
-function RTC.BtnPass() RTC.AddChat(L.pass) end
+function RTC.BtnPass()
+    if (IsInGroup() or IsInRaid()) and not InChatLockdown() then
+        -- the party/raid message comes back as a chat event and is recorded there
+        RTC.AddChat(L.pass)
+    else
+        -- solo, or chat sending locked: nobody would see "pass", record it directly
+        RTC.AddRoll(GetUnitName("player"), "0", "1", "100")
+    end
+end
 
 function RTC.BtnClearRolls()
     if #RTC.rollArray > 0 then

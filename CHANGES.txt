@@ -11,6 +11,8 @@
 - Chat payloads that are secret during chat messaging lockdown (encounters, M+,
   rated PvP) are skipped instead of erroring; announcements fall back to the
   local chat frame while sending is locked
+- Pass button records your pass directly when solo or while chat is locked,
+  instead of only printing "pass" to your chat window
 - Loot tracker waits for uncached items instead of erroring
 - Note popup uses dialog:GetEditBox(); chat focus uses ChatFrameUtil
 - Hyperlinks in the loot list use SetItemRef
