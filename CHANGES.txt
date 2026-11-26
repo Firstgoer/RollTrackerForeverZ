@@ -26,7 +26,7 @@
 - Forever window redesign: winner row with gold highlight bar and checkmark,
   "tie" marker, dimmed out-of-range rolls, re-roll refresh icon, section counts,
   empty state; one action row [Roll][Off Spec][Pass][Announce][countdown]
-  with Pass and Announce the same width; clear/undo next to "N rolled";
+  with Pass and Announce the same width; clear/undo at the right of the list header;
   hover a roll to remove just that roll; "Not rolled" is the clickable
   "N waiting" in the list header
 - Guild rank shown in the smallest dim font after the name (truncated first)
