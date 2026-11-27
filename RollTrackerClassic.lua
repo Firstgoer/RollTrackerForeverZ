@@ -49,6 +49,17 @@ local function IsReadable(...)
 end
 RTC.IsReadable = IsReadable
 
+-- /rtc sim pretends you lead a raid group (see RTC.Simulate)
+local RealIsInGroup, RealUnitIsGroupLeader = IsInGroup, UnitIsGroupLeader
+local function IsInGroup(...)
+    if RTC.Sim then return true end
+    return RealIsInGroup(...)
+end
+local function UnitIsGroupLeader(unit, ...)
+    if RTC.Sim and unit == "player" then return true end
+    return RealUnitIsGroupLeader(unit, ...)
+end
+
 -- Group loot roll window: modern clients use GroupLootHistoryFrame
 local function ModernLootHistory() return GroupLootHistoryFrame ~= nil end
 local function GetLootHistoryFrame()
@@ -170,6 +181,11 @@ function RTC.GetAutoChannel()
 end
 
 function RTC.AddChat(msg)
+    if msg ~= nil and msg ~= "" and RTC.Sim then
+        -- simulation: never send to real chat
+        DEFAULT_CHAT_FRAME:AddMessage("|cff40c0ff[RTC sim]|r " .. msg)
+        return
+    end
     if msg ~= nil and msg ~= "" then
         if (IsInGroup() or IsInRaid()) and not InChatLockdown() then
             SendChatMessage(msg, RTC.GetAutoChannel())
@@ -338,7 +354,7 @@ function RTC.BtnOffSpec()
 end
 
 function RTC.BtnPass()
-    if (IsInGroup() or IsInRaid()) and not InChatLockdown() then
+    if (IsInGroup() or IsInRaid()) and not InChatLockdown() and not RTC.Sim then
         -- the party/raid message comes back as a chat event and is recorded there
         RTC.AddChat(L.pass)
     else
@@ -894,6 +910,7 @@ function RTC.Init()
         {{"config", "setup", "options"}, L["SlashConfig"], RTC.Options.Open, 1},
         {"about", L["SlashAbout"], RTC.Options.Open, 4},
         {"debug", "", {{"%", "", RTC.AddRoll}}},
+        {"sim", "", {{"%", L["SlashSim"], RTC.Simulate}}},
         {"notes", L["SlashNotes"], RTC.notes_list},
         {"start", "", {{"%", L["SlashStart"], RTC.StartRoll}}}, {
             {"countdown", "count", "cd"}, "",
@@ -2663,6 +2680,132 @@ function RTC.ApplyForeverSkin(self)
     RTC.BuildForeverLayout()
 
     RTC.LayerForeverSkin()
+end
+
+-- /rtc sim: simulated raid for testing the window without a group.
+-- Fills a fake roster, rolls for it over a few seconds (re-roll, out-of-range
+-- roll, pass, a tie chance, players who never roll). While it runs, every chat
+-- message RTC would send is printed only to your own chat window.
+local SIM_ROSTER = {
+    {"Thrandor", "WARRIOR", "Forever Raiders / Officer"},
+    {"Elunara", "PRIEST", "Forever Raiders / Raider"},
+    {"Kazgrim", "SHAMAN", "Forever Raiders / Raider"},
+    {"Morwenna", "MAGE", "Forever Raiders / Raider"},
+    {"Vexilia", "WARLOCK", "Forever Raiders / Trial"},
+    {"Brannoc", "PALADIN", "Forever Raiders / Class Lead"},
+    {"Sylvaris", "HUNTER", "Forever Raiders / Raider"},
+    {"Nightpaw", "DRUID", "Forever Raiders / Raider"},
+    {"Shadowmere", "ROGUE", "Forever Raiders / Alt"},
+    {"Буль Буль", "PALADIN", "ПИВОЦЕРАПТОР / Пивовар"},
+    {"Гримтуск", "WARRIOR", "ПИВОЦЕРАПТОР / Ветеран"},
+    {"Ильнара", "PRIEST", ""},
+}
+
+local simGeneration = 0
+
+local function SimPlayerList(unsort)
+    local ret, retName = {}, {}
+    local function add(name, class, rank)
+        local entry = {name = name, class = class, rank = (rank and rank ~= "") and ("<" .. rank .. ">") or ""}
+        tinsert(ret, entry)
+        retName[name] = entry
+    end
+    local _, myClass = UnitClass("player")
+    add(GetUnitName("player"), myClass, "")
+    for i = 1, RTC.Sim.size do
+        local p = SIM_ROSTER[i]
+        add(p[1], p[2], p[3])
+    end
+    if unsort then
+        sort(ret, function(a, b)
+            return (a.class or "") < (b.class or "") or
+                       ((a.class or "") == (b.class or "") and a.name < b.name)
+        end)
+    end
+    return ret, retName
+end
+
+local RealGetPlayerList = RTC.GetPlayerList
+function RTC.GetPlayerList(unsort)
+    if RTC.Sim then return SimPlayerList(unsort) end
+    return RealGetPlayerList(unsort)
+end
+
+local function SimMessage(msg)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff40c0ff[RTC sim]|r " .. msg)
+end
+
+function RTC.StopSimulation(quiet)
+    if not RTC.Sim then return end
+    simGeneration = simGeneration + 1 -- cancels pending fake rolls
+    RTC.Sim = nil
+    RTC.StopCountdown()
+    RTC.ClearRolls()
+    if not quiet then SimMessage(L["MsgSimStopped"]) end
+    RTC.OptionsUpdate()
+end
+
+function RTC.Simulate(arg)
+    arg = arg and string.lower(arg) or ""
+    if arg == "stop" or arg == "off" then
+        RTC.StopSimulation()
+        return
+    end
+    local size = math.max(2, math.min(tonumber(arg) or 9, #SIM_ROSTER))
+
+    simGeneration = simGeneration + 1
+    local generation = simGeneration
+    RTC.Sim = {size = size}
+    RTC.rollArray, RTC.rollNames = {}, {}
+    RTC.rollUndoArray, RTC.rollUndoNames = {}, {}
+    RTC.OptionsUpdate()
+    RTC.ShowWindow(1)
+    SimMessage(string.format(L["MsgSimStarted"], size))
+    RTC.StartRoll()
+
+    -- decide who does what
+    local plan, names = {}, {}
+    for i = 1, size do names[i] = SIM_ROSTER[i][1] end
+    for i = #names, 2, -1 do
+        local j = math.random(i)
+        names[i], names[j] = names[j], names[i]
+    end
+    local ms = RTC.DB.MainAndOffSpecMode
+    local waiting = math.max(1, math.floor(size / 4)) -- these never roll
+    local tieRoll = math.random(60, 99)
+    local makeTie = math.random() < 0.5
+    local rollers = size - waiting
+    for i = 1, rollers do
+        local name = names[i]
+        local hi = (ms and math.random() < 0.3) and 99 or 100
+        if i == 1 then
+            tinsert(plan, {name, tostring(math.random(1, 50)), "1", "50"}) -- out of range
+        elseif i == 2 then
+            tinsert(plan, {name, "0", "1", "100"}) -- pass
+        elseif makeTie and (i == 3 or i == 4) then
+            tinsert(plan, {name, tostring(tieRoll), "1", "100"}) -- two players tie
+        else
+            tinsert(plan, {name, tostring(math.random(1, hi)), "1", tostring(hi)})
+        end
+        if i == 5 then -- somebody rolls a second time
+            tinsert(plan, {name, tostring(math.random(1, 100)), "1", "100"})
+        end
+    end
+    -- shuffle the order a bit so the tie/re-roll don't always come in sequence
+    for i = #plan, 2, -1 do
+        local j = math.random(math.max(1, i - 2), i)
+        plan[i], plan[j] = plan[j], plan[i]
+    end
+
+    -- play the rolls back over a few seconds, like a real raid
+    local delay = 0.6
+    for _, r in ipairs(plan) do
+        delay = delay + 0.25 + math.random() * 0.9
+        C_Timer.After(delay, function()
+            if simGeneration ~= generation or not RTC.Sim then return end
+            RTC.AddRoll(r[1], r[2], r[3], r[4])
+        end)
+    end
 end
 
 -- Addon compartment (the addon button list under the minimap calendar)
