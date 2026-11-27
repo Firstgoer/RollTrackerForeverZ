@@ -1442,11 +1442,13 @@ function RTC.ClearRolls(doMsg)
         RTC.rollUndoNames = RTC.rollNames
         RTC.removedUndo = RTC.removedRolls or {}
         RTC.itemUndo = RTC.CurrentItem
+        RTC.lastItemUndo = RTC.lastItem
         RTC.rollArray = {}
         RTC.rollNames = {}
         RTC.removedRolls = {}
     end
     RTC.CurrentItem = nil
+    RTC.lastItem = nil
     RTC.UpdateRollList()
 end
 
@@ -1462,7 +1464,9 @@ function RTC.UndoRolls(doMsg)
         RTC.rollNames = RTC.rollUndoNames
         RTC.removedRolls = RTC.removedUndo or {}
         RTC.CurrentItem = RTC.itemUndo
+        RTC.lastItem = RTC.lastItemUndo
         RTC.itemUndo = nil
+        RTC.lastItemUndo = nil
         RTC.rollUndoArray = {}
         RTC.rollUndoNames = {}
         RTC.removedUndo = {}
@@ -1501,6 +1505,9 @@ function RTC.StartRoll(...)
     end
     RTC.AddChat(RTC.MSGPREFIX_START .. string.format(msg, L["pass"]))
     RTC.PendingItem = nil
+    -- a roll without an item must not inherit the previous roll's item
+    RTC.CurrentItem = nil
+    RTC.lastItem = nil
     if item and item ~= "" and item ~= " " then
         RTC.AddChat(RTC.MSGPREFIX .. string.format(L["MsgNextItem"], item))
         -- remembered for the window ("rolling for"), the announcement and history
