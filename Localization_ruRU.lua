@@ -40,6 +40,7 @@ RTC.Locales.ruRU = {
     ["TxtRolled"] = "Бросили: %d",
     ["TxtWaiting"] = "Ждём: %d",
     ["TxtTie"] = "ничья",
+    ["TxtRemoved"] = "Убранные",
     ["TxtNoRolls"] = "Бросков пока нет",
     ["TxtNoRollsHint"] = "/roll или кнопка «Бросок»",
     ["MenuCountdown"] = "Начать отсчёт",

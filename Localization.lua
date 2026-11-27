@@ -149,6 +149,7 @@ function RTC.GetLocale()
         ["TxtRolled"] = "%d rolled",
         ["TxtWaiting"] = "%d waiting",
         ["TxtTie"] = "tie",
+        ["TxtRemoved"] = "Removed",
         ["TxtNoRolls"] = "No rolls yet",
         ["TxtNoRollsHint"] = "/roll or press Roll",
         ["MenuCountdown"] = "Start countdown",

@@ -444,7 +444,7 @@ function RTC.BtnPass()
 end
 
 function RTC.BtnClearRolls()
-    if #RTC.rollArray > 0 then
+    if #RTC.rollArray > 0 or #(RTC.removedRolls or {}) > 0 then
         RTC.ClearRolls()
         if RTC.DB.CloseOnClear then RTC.HideWindow() end
     elseif #RTC.rollUndoArray > 0 then
@@ -897,6 +897,8 @@ function RTC.Init()
     RTC.rollNames = {}
     RTC.rollUndoArray = {}
     RTC.rollUndoNames = {}
+    RTC.removedRolls = {} -- rolls taken out with the per-row rollback
+    RTC.removedUndo = {}
     RTC.lootUndo = {}
     RTC.lastItem = nil
 
@@ -1407,7 +1409,7 @@ function RTC.UpdateRollList()
 end
 
 function RTC.ClearRolls(doMsg)
-    if #RTC.rollArray > 0 then
+    if #RTC.rollArray > 0 or #(RTC.removedRolls or {}) > 0 then
         if doMsg then
             DEFAULT_CHAT_FRAME:AddMessage(RTC.MSGPREFIX .. L["MsgRollCleared"],
                                           RTC.DB.ColorChat.r,
@@ -1417,8 +1419,10 @@ function RTC.ClearRolls(doMsg)
 
         RTC.rollUndoArray = RTC.rollArray
         RTC.rollUndoNames = RTC.rollNames
+        RTC.removedUndo = RTC.removedRolls or {}
         RTC.rollArray = {}
         RTC.rollNames = {}
+        RTC.removedRolls = {}
     end
     RTC.UpdateRollList()
 end
@@ -1433,8 +1437,10 @@ function RTC.UndoRolls(doMsg)
         end
         RTC.rollArray = RTC.rollUndoArray
         RTC.rollNames = RTC.rollUndoNames
+        RTC.removedRolls = RTC.removedUndo or {}
         RTC.rollUndoArray = {}
         RTC.rollUndoNames = {}
+        RTC.removedUndo = {}
         RTC.UpdateRollList()
     end
 end
@@ -2058,7 +2064,11 @@ local function InitRollRow(row, d)
     row:EnableMouse(true)
 
     -- roll number
-    if d.kind == "missing" then
+    if d.kind == "removed" then
+        row.Roll:SetFontObject(GameFontDisableMed2)
+        row.Roll:SetText(d.roll)
+        row:SetAlpha(0.6)
+    elseif d.kind == "missing" then
         row.Roll:SetFontObject(GameFontDisableMed2)
         row.Roll:SetText("-")
     elseif d.winner then
@@ -2075,7 +2085,7 @@ local function InitRollRow(row, d)
     -- class icon
     if d.class and RTC.DB.ShowClassIcon and GetClassAtlas then
         row.ClassIcon:SetAtlas(GetClassAtlas(string.lower(d.class)))
-        row.ClassIcon:SetDesaturated(d.kind == "missing")
+        row.ClassIcon:SetDesaturated(d.kind == "missing" or d.kind == "removed")
         row.ClassIcon:Show()
     end
 
@@ -2085,7 +2095,7 @@ local function InitRollRow(row, d)
     row.Rank:SetShown(not isHeader)
     local r, g, b = ClassRGB(d.class)
     if not (r and RTC.DB.ColorName) then r, g, b = 1, 1, 1 end
-    if d.kind == "missing" then
+    if d.kind == "missing" or d.kind == "removed" then
         row.Name:SetTextColor(r * 0.6, g * 0.6, b * 0.6)
     else
         row.Name:SetTextColor(r, g, b)
@@ -2255,9 +2265,21 @@ function RTC.UpdateForeverRollList()
         addSection(L["BtnNotRolled"], missing)
     end
 
+    -- rolls removed with the per-row rollback stay visible at the bottom
+    local removed = RTC.removedRolls or {}
+    if #removed > 0 then
+        local entries = {}
+        for i = #removed, 1, -1 do -- most recently removed first
+            local e = entry(removed[i])
+            e.kind = "removed"
+            tinsert(entries, e)
+        end
+        addSection(L["TxtRemoved"], entries)
+    end
+
     list.ScrollBox:SetDataProvider(CreateDataProvider(data),
                                    ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
-    list.Empty:SetShown(#RTC.rollArray == 0)
+    list.Empty:SetShown(#RTC.rollArray == 0 and #removed == 0)
 
     -- list header: players who rolled (a re-roll doesn't count twice) / waiting
     local seen, rolled = {}, 0
@@ -2287,7 +2309,7 @@ function RTC.UpdateForeverRollList()
     local canUndo = #RTC.rollArray == 0 and #RTC.rollUndoArray > 0
     list.ClearTip = canUndo and L["TipUndo"] or L["TipClear"]
     clear.Icon:SetAtlas(canUndo and "common-icon-undo" or "common-search-clearbutton")
-    clear:SetShown(#RTC.rollArray > 0 or canUndo)
+    clear:SetShown(#RTC.rollArray > 0 or #(RTC.removedRolls or {}) > 0 or canUndo)
     clear:ClearAllPoints()
     clear:SetPoint("RIGHT", list.Header, "RIGHT", 0, 0)
     list.Waiting:ClearAllPoints()
@@ -2331,6 +2353,8 @@ function RTC.RemoveRoll(ref)
             tremove(RTC.rollArray, i)
             local n = (RTC.rollNames[roll.Name] or 1) - 1
             RTC.rollNames[roll.Name] = n > 0 and n or nil
+            RTC.removedRolls = RTC.removedRolls or {}
+            tinsert(RTC.removedRolls, roll)
             break
         end
     end
@@ -2909,6 +2933,7 @@ function RTC.Simulate(arg)
     local generation = simGeneration
     RTC.Sim = {size = size, roster = roster}
     RTC.rollArray, RTC.rollNames = {}, {}
+    RTC.removedRolls, RTC.removedUndo = {}, {}
     RTC.rollUndoArray, RTC.rollUndoNames = {}, {}
     RTC.OptionsUpdate()
     RTC.ShowWindow(1)
