@@ -41,6 +41,9 @@
   and assistants (others get [Roll][Off Spec][clear][Pass])
 - Pass button takes about a third of the row (Roll keeps two thirds) and shows
   its label when there is room
+- Notes and CSV export window in Forever style (flat panel, inset, thin scroll
+  bar, close button, game resize handles) with a title
+- "Player notes" entry in the minimap button menu
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude

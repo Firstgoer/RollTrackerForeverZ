@@ -140,6 +140,7 @@ function RTC.PopupMinimap(frame)
         RTC.PopupDynamic:AddItem(L["BtnCSVExport"], false, RTC.ShowWindow, 3)
     end
     RTC.PopupDynamic:AddItem(L["BtnLootRolls"], false, RTC.LootHistoryShow)
+    RTC.PopupDynamic:AddItem(L["HeaderNotes"], false, RTC.notes_list)
     RTC.PopupDynamic:AddItem("", true)
     RTC.PopupDynamic:AddItem(L["BtnConfig"], false, RTC.Options.Open)
     RTC.PopupDynamic:AddItem(L["PanelAbout"], false, RTC.Options.Open, 4)
@@ -706,7 +707,7 @@ function RTC.notes_list()
             txt = name .. " " .. note .. "|n" .. txt
         end
     end
-    if txt ~= "" then RTC.Tool.CopyPast(txt) end
+    RTC.Tool.CopyPast(txt ~= "" and txt or L["TxtNoNotes"], L["HeaderNotes"])
 end
 
 local function EnterHyperlink(_, link)
@@ -1749,7 +1750,7 @@ function RTC.BtnExport()
     for _, loot in ipairs(RollTrackerForeverZLoot) do
         Text = Text .. RTC.CSVList_AddItem(loot, true) .. "\n"
     end
-    RTC.Tool.CopyPast(Text)
+    RTC.Tool.CopyPast(Text, L["BtnCSVExport"])
 end
 
 -- WoW: Forever look & feel

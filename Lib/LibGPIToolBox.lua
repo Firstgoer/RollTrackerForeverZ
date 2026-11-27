@@ -845,7 +845,94 @@ local BACKDROP_DIALOG_32_32 = BACKDROP_DIALOG_32_32 or {
 	insets = { left = 11, right = 12, top = 12, bottom = 11 },
 }
 
+-- Modern (WoW: Forever / mainline) copy window: flat panel, inset, thin scroll bar,
+-- close button and the game's loot-roll resize handles
+local function ModernTemplatesAvailable()
+	return C_XMLUtil and C_XMLUtil.GetTemplateInfo and
+		C_XMLUtil.GetTemplateInfo("DefaultPanelFlatTemplate") and
+		C_XMLUtil.GetTemplateInfo("ScrollFrameTemplate") and true or false
+end
+
+local function ResizeHandle(frame, point, vertical)
+	local handle = CreateFrame("Button", nil, frame)
+	handle:SetFrameLevel(frame:GetFrameLevel() + 20)
+	if vertical then handle:SetSize(12, 32) else handle:SetSize(32, 12) end
+	for _, layer in ipairs({"OVERLAY", "HIGHLIGHT"}) do
+		local tex = handle:CreateTexture(nil, layer)
+		tex:SetAtlas("lootroll-resizehandle")
+		tex:SetSize(32, 12)
+		tex:SetPoint("CENTER")
+		if layer == "HIGHLIGHT" then tex:SetBlendMode("ADD") end
+		if vertical then tex:SetRotation(math.pi / 2) end
+	end
+	handle:SetScript("OnMouseDown", function() frame:StartSizing(point, true) end)
+	handle:SetScript("OnMouseUp", function() frame:StopMovingOrSizing() end)
+	return handle
+end
+
+local function CreateModernCopyPast()
+	local frame = CreateFrame("Frame", nil, UIParent, "DefaultPanelFlatTemplate")
+	frame:SetFrameStrata("DIALOG")
+	frame:SetToplevel(true)
+	frame:SetSize(560, 380)
+	frame:SetPoint("CENTER")
+	frame:SetClampedToScreen(true)
+	frame:EnableMouse(true)
+	frame:SetMovable(true)
+	frame:SetResizable(true)
+	frame:SetResizeBounds(260, 180)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", frame.StartMoving)
+	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+
+	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButtonDefaultAnchors")
+	close:SetFrameLevel(frame:GetFrameLevel() + 520)
+
+	local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+	button:SetSize(110, 22)
+	button:SetPoint("BOTTOMRIGHT", -10, 8)
+	button:SetText(OKAY or "OK")
+	button:SetScript("OnClick", function() frame:Hide() end)
+
+	local inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
+	inset:SetPoint("TOPLEFT", 8, -26)
+	inset:SetPoint("BOTTOMRIGHT", -8, 36)
+
+	local scrollFrame = CreateFrame("ScrollFrame", nil, inset, "ScrollFrameTemplate")
+	scrollFrame:SetPoint("TOPLEFT", 8, -6)
+	scrollFrame:SetPoint("BOTTOMRIGHT", -22, 6)
+
+	local editBox = CreateFrame("EditBox", nil, scrollFrame)
+	editBox:SetMaxLetters(999999)
+	editBox:SetMultiLine(true)
+	editBox:SetAutoFocus(true)
+	editBox:SetFontObject(ChatFontNormal)
+	editBox:SetWidth(scrollFrame:GetWidth())
+	editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
+	editBox:SetScript("OnTextChanged", function(self, userInput)
+		-- read-only: undo typing and keep everything selected for copying
+		if userInput then
+			self:SetText(CopyPastSavedText or "")
+			self:HighlightText()
+		end
+	end)
+	scrollFrame:SetScrollChild(editBox)
+	scrollFrame:SetScript("OnSizeChanged", function(self, width)
+		editBox:SetWidth(width)
+	end)
+
+	-- game-style resize handles: bottom = height, right = width
+	ResizeHandle(frame, "BOTTOM", false):SetPoint("TOP", frame, "BOTTOM", 0, 3)
+	ResizeHandle(frame, "RIGHT", true):SetPoint("LEFT", frame, "RIGHT", -3, 0)
+
+	CopyPastFrame = frame
+	CopyPastTitle = frame.TitleContainer.TitleText
+	CopyPastText = editBox
+	return frame
+end
+
 local function CreateCopyPast()
+	if ModernTemplatesAvailable() then return CreateModernCopyPast() end
 	local frame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	frame:SetFrameStrata("DIALOG")
 	frame:SetBackdrop(BACKDROP_DIALOG_32_32)
@@ -933,13 +1020,14 @@ local function CreateCopyPast()
 	return frame
 end
 
-function Tool.CopyPast(Text)
+function Tool.CopyPast(Text, Title)
 	if CopyPastFrame==nil then
 		CreateCopyPast()
 	end
+	CopyPastSavedText=Text
+	CopyPastTitle:SetText(Title or " ")
 	CopyPastText:SetText(Text)
 	CopyPastText:HighlightText()
 	CopyPastFrame:Show()
 	CopyPastText:SetFocus()
-	CopyPastSavedText=Text
 end

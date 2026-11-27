@@ -31,6 +31,8 @@ function RTC.GetLocale()
         ["MsgPastLoots"] = "Past loots:",
         ["MsgAddNote"] = "%s note",
         ["MsgNotesCleared"] = "All player notes cleared",
+        ["HeaderNotes"] = "Player notes",
+        ["TxtNoNotes"] = "No player notes yet. Click a player in the roll list to add one.",
         ["TxTOffSpec"] = "Off Spec",
         ["TxTMainSpec"] = "Main Spec",
         ["TxtLine"] = "------------------------------------------------------------------------------------------------------",
