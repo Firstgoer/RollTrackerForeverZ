@@ -56,6 +56,10 @@
   split at ", " instead of failing
 - Closing the window during an unfinished roll (countdown running or rolls not
   announced yet) asks: [Announce] [Cancel] [Close]; option to turn it off
+- Clearer chat messages: countdown "5 sec left" (with the item when known),
+  winner/tie lines include how many players rolled, result list "2. Name: 87",
+  one-line "Still waiting for 3: ... Type /roll or 'pass'", raid roll
+  "won (7 of 20)", "No valid rolls." when announcing without a winner
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude

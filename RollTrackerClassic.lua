@@ -1060,7 +1060,12 @@ function RTC.Timers()
         if sec ~= lastCountDown then
             lastCountDown = sec
             if sec > 0 then
-                RTC.AddChat(RTC.MSGPREFIX .. sec)
+                if RTC.lastItem then
+                    RTC.AddChat(RTC.MSGPREFIX ..
+                                    string.format(L["MsgCountdownItem"], RTC.lastItem, sec))
+                else
+                    RTC.AddChat(RTC.MSGPREFIX .. string.format(L["MsgCountdown"], sec))
+                end
             else
                 RTC.RollAnnounce()
                 RTC.lastItem = nil
@@ -1214,7 +1219,7 @@ function RTC.AddRoll(name, roll, low, high)
         roll = tonumber(roll)
         RTC.AddChat(RTC.MSGPREFIX ..
                         string.format(L["MsgRaidRoll"],
-                                      RTC.IsRaidRoll[roll].name, roll))
+                                      RTC.IsRaidRoll[roll].name, roll, #RTC.IsRaidRoll))
         RTC.IsRaidRoll = nil
         return
     end
@@ -1440,9 +1445,9 @@ function RTC.NotRolled()
         names = string.sub(names, 3)
 
         if names ~= "" then
+            local count = select(2, string.gsub(names, ", ", "")) + 1
             RTC.AddChat(RTC.MSGPREFIX ..
-                            string.format(L["MsgNotRolled"], L["pass"]))
-            RTC.AddChat(names)
+                            string.format(L["MsgNotRolledList"], count, names, L["pass"]))
         end
     end
 end
@@ -1467,6 +1472,12 @@ function RTC.StartRoll(...)
         end
     end
     RTC.AddChat(L["MsgBar"])
+end
+
+local function AnnounceListLine(position, roll)
+    local range = (roll.Low ~= 1 or roll.High ~= 100) and
+                      string.format(" (%d-%d)", roll.Low, roll.High) or ""
+    return string.format(L["MsgAnnounceLine"], position, roll.Name, roll.Roll) .. range
 end
 
 function RTC.RollAnnounce(numbers)
@@ -1496,7 +1507,7 @@ function RTC.RollAnnounce(numbers)
                 end
                 if numbers > 0 then
                     numbers = numbers - 1
-                    tinsert(list, roll.Roll .. " " .. roll.Name .. " (" .. roll.Low .. "-" .. roll.High .. ")")
+                    tinsert(list, AnnounceListLine(#list + 1, roll))
                 end
             end
         end
@@ -1516,7 +1527,7 @@ function RTC.RollAnnounce(numbers)
                     end
                     if numbers > 0 then
                         numbers = numbers - 1
-                        tinsert(list, roll.Roll .. " " .. roll.Name .. " (" .. roll.Low .. "-" .. roll.High .. ")")
+                        tinsert(list, AnnounceListLine(#list + 1, roll))
                     end
                 end
             end
@@ -1541,27 +1552,34 @@ function RTC.RollAnnounce(numbers)
                 end
                 if numbers > 0 then
                     numbers = numbers - 1
-                    tinsert(list, roll.Roll .. " " .. roll.Name .. " (" ..
-                                roll.Low .. "-" .. roll.High .. ")")
+                    tinsert(list, AnnounceListLine(#list + 1, roll))
                 end
             end
         end
     end
 
+    local rollers, seen = 0, {}
+    for _, roll in ipairs(RTC.rollArray) do
+        if not seen[roll.Name] then
+            seen[roll.Name] = true
+            rollers = rollers + 1
+        end
+    end
+
     if winNum == 1 and RTC.lastItem == nil then
         msg = RTC.MSGPREFIX .. addPrefix ..
-                  string.format(L["MsgAnnounce"], winName, max)
+                  string.format(L["MsgAnnounce"], winName, max, rollers)
     elseif winNum == 1 and RTC.lastItem ~= nil then
         msg = RTC.MSGPREFIX .. addPrefix ..
-                  string.format(L["MsgAnnounceItem"], winName, RTC.lastItem, max)
+                  string.format(L["MsgAnnounceItem"], winName, RTC.lastItem, max, rollers)
     elseif winNum > 1 and RTC.lastItem == nil then
         msg = RTC.MSGPREFIX .. addPrefix ..
-                  string.format(L["MsgAnnounceTie"], winName, max)
+                  string.format(L["MsgAnnounceTie"], winName, max, rollers)
     elseif winNum > 1 and RTC.lastItem ~= nil then
         msg = RTC.MSGPREFIX .. addPrefix ..
-                  string.format(L["MsgAnnounceTieItem"], winName, RTC.lastItem,
-                                max)
-    elseif RTC.Countdown then
+                  string.format(L["MsgAnnounceTieItem"], RTC.lastItem, winName,
+                                max, rollers)
+    else
         msg = RTC.MSGPREFIX .. L["MsgForcedAnnounce"]
     end
 
