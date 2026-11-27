@@ -1841,13 +1841,11 @@ local function RowOnLeave(row)
     end
 end
 
-local NOTE_SLOT = 18 -- note icon sits left of the (hover) rollback icon
 
 local function EnsureRowNote(row)
     if row.NoteButton then return end
     local note = CreateFrame("Button", nil, row)
     note:SetSize(14, 14)
-    note:SetPoint("RIGHT", row, "RIGHT", -4 - NOTE_SLOT, 0)
     local icon = note:CreateTexture(nil, "ARTWORK")
     icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -1984,22 +1982,38 @@ local function InitRollRow(row, d)
         end
         if d.outOfRange then row:SetAlpha(0.6) end
     end
-    -- note icon (if the player has a note) left of the rollback slot;
-    -- checkmark / info move left of it
+    -- right edge: checkmark / info share one slot with the hover rollback icon
+    -- (they swap in place); the note icon sits left of that slot
+    row.Check:ClearAllPoints()
+    row.Check:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    row.Info:ClearAllPoints()
+    row.Info:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    local slot -- what occupies the right slot when not hovered
+    if row.Check:IsShown() then slot = row.Check elseif row.Info:IsShown() then slot = row.Info end
+
     local note = RTC.Notes[d.name]
     local hasNote = note ~= nil and note ~= ""
     row.NoteButton:SetShown(hasNote)
-    local rightOffset = hasNote and (-4 - NOTE_SLOT - 14 - 4) or -4
-    row.Check:ClearAllPoints()
-    row.Check:SetPoint("RIGHT", row, "RIGHT", rightOffset, 0)
-    row.Info:ClearAllPoints()
-    row.Info:SetPoint("RIGHT", row, "RIGHT", rightOffset, 0)
+    row.NoteButton:ClearAllPoints()
+    if slot then
+        -- at least as far left as the rollback icon, so hovering never covers it
+        local slotWidth = math.max(slot:GetWidth(), 14)
+        row.NoteButton:SetPoint("RIGHT", row, "RIGHT", -4 - slotWidth - 4, 0)
+    else
+        row.NoteButton:SetPoint("RIGHT", row, "RIGHT", -4 - 14 - 4, 0)
+    end
 
     -- the name keeps its full width (up to the free space); the rank gets the rest
-    local right = row.Check:IsShown() and row.Check or row.Info
-    row.Rank:SetPoint("RIGHT", right, "LEFT", -4, 0)
-    local free = (row:GetWidth() or 200) - 53 + (rightOffset + 4)
-        - (right:IsShown() and (right:GetWidth() + 8) or 4)
+    local right = hasNote and row.NoteButton or slot
+    if right then
+        row.Rank:SetPoint("RIGHT", right, "LEFT", -4, 0)
+    else
+        row.Rank:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    end
+    local used = 4
+    if slot then used = used + math.max(slot:GetWidth(), 14) + 4 end
+    if hasNote then used = used + 14 + 4 end
+    local free = (row:GetWidth() or 200) - 53 - used
     row.Name:SetWidth(math.max(20, math.min(row.Name:GetUnboundedStringWidth() + 2, free)))
 end
 
