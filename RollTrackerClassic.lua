@@ -1813,34 +1813,49 @@ local function ClassRGB(class)
     if c then return c.r, c.g, c.b end
 end
 
-local function ShowRowRemove(row, show)
+-- the rollback icon lives in the checkmark/info slot and only appears while the
+-- mouse is over that slot (hovering the name opens the note, not the rollback)
+local function SetRemoveHover(row, hover)
     local remove = row.RemoveButton
     if not remove then return end
-    show = show and row.data and row.data.kind == "roll"
-    remove:SetShown(show)
-    -- the rollback icon temporarily takes the place of the right-side info
-    if show then
-        row.Check:SetAlpha(0)
-        row.Info:SetAlpha(0)
-    else
-        row.Check:SetAlpha(1)
-        row.Info:SetAlpha(1)
-    end
+    remove:SetAlpha(hover and 1 or 0)
+    row.Check:SetAlpha(hover and 0 or 1)
+    row.Info:SetAlpha(hover and 0 or 1)
 end
 
 local function RowOnEnter(row)
     local d = row.data
-    ShowRowRemove(row, true)
     if d and d.name then EnterHyperlink(nil, "player:" .. d.name) end
 end
 
-local function RowOnLeave(row)
+local function RowOnLeave()
     GameTooltip_Hide()
-    if not (row.RemoveButton and row.RemoveButton:IsMouseOver()) then
-        ShowRowRemove(row, false)
-    end
 end
 
+local function EnsureRowRemove(row)
+    if row.RemoveButton then return end
+    local remove = CreateFrame("Button", nil, row)
+    remove:SetSize(22, 20) -- hit area covers the checkmark/info slot
+    remove:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    local icon = remove:CreateTexture(nil, "ARTWORK")
+    icon:SetAtlas("common-icon-undo")
+    icon:SetSize(14, 14)
+    icon:SetPoint("RIGHT", -4, 0)
+    remove:SetScript("OnClick", function()
+        if row.data and row.data.ref then RTC.RemoveRoll(row.data.ref) end
+    end)
+    remove:SetScript("OnEnter", function(self)
+        SetRemoveHover(row, true)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["TipRemoveRoll"])
+        GameTooltip:Show()
+    end)
+    remove:SetScript("OnLeave", function()
+        SetRemoveHover(row, false)
+        GameTooltip_Hide()
+    end)
+    row.RemoveButton = remove
+end
 
 local function EnsureRowNote(row)
     if row.NoteButton then return end
@@ -1867,29 +1882,6 @@ local function EnsureRowNote(row)
     row.NoteButton = note
 end
 
-local function EnsureRowRemove(row)
-    if row.RemoveButton then return end
-    local remove = CreateFrame("Button", nil, row)
-    remove:SetSize(14, 14)
-    remove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-    remove:SetNormalAtlas("common-icon-undo")
-    remove:SetHighlightAtlas("common-icon-undo", "ADD")
-    remove:SetScript("OnClick", function()
-        if row.data and row.data.ref then RTC.RemoveRoll(row.data.ref) end
-    end)
-    remove:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["TipRemoveRoll"])
-        GameTooltip:Show()
-    end)
-    remove:SetScript("OnLeave", function()
-        GameTooltip_Hide()
-        if not row:IsMouseOver() then ShowRowRemove(row, false) end
-    end)
-    remove:Hide()
-    row.RemoveButton = remove
-end
-
 local function RowOnClick(row)
     local d = row.data
     if d and d.name then RTC.EditNote(d.name) end
@@ -1910,7 +1902,8 @@ local function InitRollRow(row, d)
     row:SetAlpha(1)
     EnsureRowRemove(row)
     EnsureRowNote(row)
-    ShowRowRemove(row, false)
+    SetRemoveHover(row, false)
+    row.RemoveButton:SetShown(d.kind == "roll")
     row.NoteButton:Hide()
     row:SetScript("OnEnter", RowOnEnter)
     row:SetScript("OnLeave", RowOnLeave)
