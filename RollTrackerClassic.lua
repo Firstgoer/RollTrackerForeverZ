@@ -652,26 +652,6 @@ function RTC.OptionsInit()
 end
 
 -- notesystem
-local function hooked_createTooltip(self)
-    if self ~= GameTooltip then return end
-    local name, unit = self:GetUnit()
-    if not IsReadable(name, unit) then return end
-    if (name) and (unit) and UnitIsPlayer(unit) and RTC.Notes[name] then
-        self:AddLine(RTC.Notes[name])
-        self:Show()
-    end
-end
-
-local function HookUnitTooltip()
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and
-        Enum.TooltipDataType then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit,
-                                                hooked_createTooltip)
-    else
-        GameTooltip:HookScript("OnTooltipSetUnit", hooked_createTooltip)
-    end
-end
-
 local function PopupEditBox(dialog)
     return dialog.GetEditBox and dialog:GetEditBox() or dialog.editBox
 end
@@ -724,7 +704,6 @@ local function EnterHyperlink(_, link)
                                          "]|h")
         else
             GameTooltip:AddLine(part[2])
-            GameTooltip:AddLine(RTC.Notes[part[2]] or "")
         end
 
         if RTC.DB.LootTracker.Enable then
@@ -766,7 +745,7 @@ local function initHyperlink(frame)
     frame:SetScript("OnHyperlinkClick", ClickHyperlink)
 
     if StaticPopupDialogs["RollTrackerClassic_AddNote"] == nil then
-        HookUnitTooltip()
+        -- notes are shown as a note icon in the roll list, not in tooltips
 
         StaticPopupDialogs["RollTrackerClassic_AddNote"] = {
             text = L.MsgAddNote,
@@ -778,6 +757,7 @@ local function initHyperlink(frame)
             editBoxWidth = 350,
             OnAccept = function(self)
                 RTC.Notes[EditEntry] = PopupEditBox(self):GetText()
+                RTC.UpdateRollList()
             end,
             OnShow = function(self)
                 PopupEditBox(self):SetText(RTC.Notes[EditEntry] or "");
@@ -790,6 +770,7 @@ local function initHyperlink(frame)
             EditBoxOnEnterPressed = function(self)
                 local parent = self:GetParent();
                 RTC.Notes[EditEntry] = PopupEditBox(parent):GetText()
+                RTC.UpdateRollList()
                 parent:Hide();
             end,
             EditBoxOnEscapePressed = function(self)
@@ -1860,6 +1841,34 @@ local function RowOnLeave(row)
     end
 end
 
+local NOTE_SLOT = 18 -- note icon sits left of the (hover) rollback icon
+
+local function EnsureRowNote(row)
+    if row.NoteButton then return end
+    local note = CreateFrame("Button", nil, row)
+    note:SetSize(14, 14)
+    note:SetPoint("RIGHT", row, "RIGHT", -4 - NOTE_SLOT, 0)
+    local icon = note:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    icon:SetAllPoints()
+    note:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    note:SetScript("OnClick", function()
+        if row.data and row.data.name then RTC.EditNote(row.data.name) end
+    end)
+    note:SetScript("OnEnter", function(self)
+        local d = row.data
+        if not (d and d.name) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(d.name)
+        GameTooltip:AddLine(RTC.Notes[d.name] or "", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    note:SetScript("OnLeave", GameTooltip_Hide)
+    note:Hide()
+    row.NoteButton = note
+end
+
 local function EnsureRowRemove(row)
     if row.RemoveButton then return end
     local remove = CreateFrame("Button", nil, row)
@@ -1902,7 +1911,9 @@ local function InitRollRow(row, d)
     row.Stripe:SetShown(not isHeader and d.stripe == true and not d.winner)
     row:SetAlpha(1)
     EnsureRowRemove(row)
+    EnsureRowNote(row)
     ShowRowRemove(row, false)
+    row.NoteButton:Hide()
     row:SetScript("OnEnter", RowOnEnter)
     row:SetScript("OnLeave", RowOnLeave)
     row:SetScript("OnClick", RowOnClick)
@@ -1973,10 +1984,22 @@ local function InitRollRow(row, d)
         end
         if d.outOfRange then row:SetAlpha(0.6) end
     end
+    -- note icon (if the player has a note) left of the rollback slot;
+    -- checkmark / info move left of it
+    local note = RTC.Notes[d.name]
+    local hasNote = note ~= nil and note ~= ""
+    row.NoteButton:SetShown(hasNote)
+    local rightOffset = hasNote and (-4 - NOTE_SLOT - 14 - 4) or -4
+    row.Check:ClearAllPoints()
+    row.Check:SetPoint("RIGHT", row, "RIGHT", rightOffset, 0)
+    row.Info:ClearAllPoints()
+    row.Info:SetPoint("RIGHT", row, "RIGHT", rightOffset, 0)
+
     -- the name keeps its full width (up to the free space); the rank gets the rest
     local right = row.Check:IsShown() and row.Check or row.Info
     row.Rank:SetPoint("RIGHT", right, "LEFT", -4, 0)
-    local free = (row:GetWidth() or 200) - 53 - (right:IsShown() and (right:GetWidth() + 8) or 4)
+    local free = (row:GetWidth() or 200) - 53 + (rightOffset + 4)
+        - (right:IsShown() and (right:GetWidth() + 8) or 4)
     row.Name:SetWidth(math.max(20, math.min(row.Name:GetUnboundedStringWidth() + 2, free)))
 end
 

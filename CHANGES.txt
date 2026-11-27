@@ -7,7 +7,6 @@
 - Fixed load error: CharacterFrameTabButtonTemplate is not loaded on Forever;
   tabs use PanelTabButtonTemplate there
 - Item info, item class and chat sending use C_Item / C_ChatInfo
-- Unit tooltips (player notes) use TooltipDataProcessor instead of OnTooltipSetUnit
 - Chat payloads that are secret during chat messaging lockdown (encounters, M+,
   rated PvP) are skipped instead of erroring; announcements fall back to the
   local chat frame while sending is locked
@@ -44,6 +43,8 @@
 - Notes and CSV export window in Forever style (flat panel, inset, thin scroll
   bar, close button, game resize handles) with a title
 - "Player notes" entry in the minimap button menu
+- Player notes: a note icon on the player's row (hover to read, click to edit)
+  instead of a line in tooltips
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude
