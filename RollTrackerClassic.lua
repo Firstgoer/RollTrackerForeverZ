@@ -168,9 +168,12 @@ function RTC.PopupMinimap(frame)
 end
 
 function RTC.GetAutoChannel()
-    -- Return an appropriate channel in order of preference: /raid, /p, /s
+    -- Return an appropriate channel in order of preference: /i, /raid, /p, /s
     local channel
-    if IsInRaid() then
+    if not RTC.Sim and LE_PARTY_CATEGORY_INSTANCE and
+        RealIsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        channel = "INSTANCE_CHAT"
+    elseif IsInRaid() then
         channel = "RAID"
     elseif IsInGroup() then
         channel = "PARTY"
@@ -714,12 +717,12 @@ local function EnterHyperlink(_, link)
         GameTooltip:SetOwner(UIParent, "ANCHOR_PRESERVE")
         GameTooltip:ClearLines()
 
-        local guid = UnitGUID(part[2])
-        if guid then
-            GameTooltip:SetHyperlink("|Hunit:" .. guid .. "|h[" .. part[2] ..
-                                         "]|h")
+        -- group members get their normal unit tooltip (by name as unit token)
+        local name = part[2]
+        if UnitExists(name) and IsReadable(UnitGUID(name)) then
+            GameTooltip:SetUnit(name)
         else
-            GameTooltip:AddLine(part[2])
+            GameTooltip:AddLine(name)
         end
 
         if RTC.DB.LootTracker.Enable then
@@ -1044,7 +1047,7 @@ end
 local function Event_CHAT_MSG_SYSTEM(arg1)
     if not IsReadable(arg1) then return end
     for name, roll, low, high in string.gmatch(arg1, RTC.PatternRoll) do
-        -- print(".."..name.." "..roll.." "..low.." "..high)
+        name = string.match(name, "^([^%-]+)") or name
         RTC.AddRoll(name, roll, low, high)
     end
 end
@@ -1052,7 +1055,8 @@ end
 local function Event_Generic_CHAT_MSG(msg, name)
     if not IsReadable(msg, name) then return end
     local dopass = false
-    if RTC.PassTags[msg] then dopass = true end
+    local tag = strtrim(msg)
+    if RTC.PassTags[tag] or RTC.PassTags[string.lower(tag)] then dopass = true end
     if dopass then
         name = RTC.Tool.Split(name, "-")[1]
         RTC.AddRoll(name, "0", "1", "100")
@@ -1101,6 +1105,8 @@ function RTC.OnLoad(self)
     RTC.Tool.RegisterEvent("CHAT_MSG_PARTY_LEADER", Event_Generic_CHAT_MSG)
     RTC.Tool.RegisterEvent("CHAT_MSG_RAID", Event_Generic_CHAT_MSG)
     RTC.Tool.RegisterEvent("CHAT_MSG_RAID_LEADER", Event_Generic_CHAT_MSG)
+    RTC.Tool.RegisterEvent("CHAT_MSG_INSTANCE_CHAT", Event_Generic_CHAT_MSG)
+    RTC.Tool.RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER", Event_Generic_CHAT_MSG)
 end
 
 -- Roll
@@ -2023,7 +2029,12 @@ local function InitRollRow(row, d)
     local used = 4
     if slot then used = used + math.max(slot:GetWidth(), 14) + 4 end
     if hasNote then used = used + 14 + 4 end
-    local free = (row:GetWidth() or 200) - 53 - used
+    local rowWidth = row:GetWidth() or 0
+    if rowWidth <= 0 and RTC.ForeverRollList then
+        rowWidth = RTC.ForeverRollList.ScrollBox:GetWidth() or 0
+    end
+    if rowWidth <= 0 then rowWidth = 200 end
+    local free = rowWidth - 53 - used
     row.Name:SetWidth(math.max(20, math.min(row.Name:GetUnboundedStringWidth() + 2, free)))
 end
 
@@ -2598,13 +2609,23 @@ function RTC.BuildForeverLayout()
     end
 
     list.Inset, list.ScrollBox, list.ScrollBar = inset, box, bar
+    -- row text widths depend on the list width: rebuild rows after a resize
+    box:HookScript("OnSizeChanged", function()
+        if RTC.ForeverRollList and RTC.DB and box:IsVisible() then
+            RTC.UpdateForeverRollList()
+        end
+    end)
     list.Empty = BuildEmptyState(inset)
     BuildTimerBar(list)
     BuildResizeHandle(list)
     RTC.ForeverRollList = list
 
     -- leader row follows group leader / assistant changes
-    local function refresh() if RTC.DB then LayoutActionBar() end end
+    local function refresh()
+        if not RTC.DB then return end
+        LayoutActionBar()
+        if RollTrackerClassicMainWindow:IsShown() then RTC.UpdateRollList() end
+    end
     RTC.Tool.RegisterEvent("GROUP_ROSTER_UPDATE", refresh)
     RTC.Tool.RegisterEvent("PARTY_LEADER_CHANGED", refresh)
 

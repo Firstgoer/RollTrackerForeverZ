@@ -48,6 +48,10 @@
 - /rtc sim [2-12|stop]: simulated raid for testing (fake roster with classes and
   guild ranks, rolls arrive over a few seconds incl. re-roll, out-of-range roll,
   pass, possible tie and players who never roll; chat output stays local)
+- Fixes: LFG/LFR/battleground groups use instance chat (and its "pass"
+  messages are recognised); "Pass" / " pass " count as passes; cross-realm
+  roll results match group members; row names re-fit after resizing; joining
+  or leaving players update the waiting list; row tooltip uses SetUnit
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude
