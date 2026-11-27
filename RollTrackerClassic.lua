@@ -374,9 +374,57 @@ function RTC.ResizeButtons()
     end
 end
 
-function RTC.BtnClose()
+-- A roll is unfinished while a countdown runs, or when there are rolls that
+-- have not been announced yet.
+function RTC.IsRollUnfinished()
+    if RTC.Countdown then return true end
+    return RTC.rollArray and #RTC.rollArray > 0 and not RTC.RollAnnounced
+end
+
+local function CountWaiting()
+    if not IsInGroup() then return 0 end
+    local n = 0
+    for _, p in ipairs((RTC.GetPlayerList())) do
+        if RTC.rollNames[p.name] == nil or RTC.rollNames[p.name] == 0 then n = n + 1 end
+    end
+    return n
+end
+
+local function CloseNow()
     RTC.HideWindow()
     if RTC.DB.ClearOnClose then RTC.ClearRolls() end
+end
+
+function RTC.BtnClose(force)
+    -- ask the player who can announce before an unfinished roll disappears
+    if force ~= true and RTC.DB.ConfirmCloseUnfinished ~= false and
+        RTC.IsRollUnfinished() and (not RTC.ShowLeaderRow or RTC.ShowLeaderRow()) then
+        if StaticPopupDialogs["RollTrackerForeverZ_CloseUnfinished"] == nil then
+            StaticPopupDialogs["RollTrackerForeverZ_CloseUnfinished"] = {
+                text = "%s",
+                button1 = L["BtnAnnounce"],
+                button2 = CANCEL,
+                button3 = CLOSE,
+                selectCallbackByIndex = true,
+                OnAccept = function()
+                    RTC.BtnAnnounce()
+                    if RollTrackerClassicMainWindow:IsShown() then CloseNow() end
+                end,
+                OnCancel = function() end, -- keep the window open (also Escape)
+                OnAlt = function() CloseNow() end,
+                OnButton3 = function() CloseNow() end,
+                timeout = 0,
+                whileDead = 1,
+                hideOnEscape = 1,
+            }
+        end
+        local waiting = CountWaiting()
+        local text = waiting > 0 and string.format(L["MsgCloseUnfinishedWaiting"], waiting)
+                         or L["MsgCloseUnfinished"]
+        StaticPopup_Show("RollTrackerForeverZ_CloseUnfinished", text)
+        return
+    end
+    CloseNow()
 end
 
 function RTC.BtnRoll() RandomRoll(1, 100) end
@@ -538,6 +586,7 @@ function RTC.OptionsInit()
     RTCO_CheckBox("MainAndOffSpecMode", false)
     RTCO_CheckBox("ShowNotRolled", true)
     RTCO_CheckBox("AnnounceLeaderOnly", false)
+    RTCO_CheckBox("ConfirmCloseUnfinished", true)
     RTC.Options.AddSpace()
     RTCO_CheckBox("ClearOnStart", false)
     RTCO_CheckBox("OpenOnStart", false)
@@ -1188,6 +1237,7 @@ function RTC.AddRoll(name, roll, low, high)
     end
 
     if ok then
+        RTC.RollAnnounced = false
 
         if RTC.DB.PromoteRolls and tonumber(roll) == 69 then roll = "101" end
 
@@ -1420,6 +1470,7 @@ function RTC.StartRoll(...)
 end
 
 function RTC.RollAnnounce(numbers)
+    RTC.RollAnnounced = true
     local winNum = 0
     local winName = ""
     local max = -1
@@ -2751,7 +2802,7 @@ local SIM_ROSTER = {
     {"Ильнара", "PRIEST", ""},
     {"Аэлинор Звездопад", "MAGE", "ПИВОЦЕРАПТОР / Пивовар"},
     {"Thrandor Ironhammer", "WARRIOR", "Forever Raiders / Raider"},
-    {"Морвенна Тихая Вода", "DRUID", ""},
+    {"Морвенна ТихаяВода", "DRUID", ""},
     {"Kaelith Dawnbreaker", "HUNTER", "Forever Raiders / Trial"},
 }
 

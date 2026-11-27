@@ -54,6 +54,8 @@
   or leaving players update the waiting list; row tooltip uses SetUnit;
   chat messages over 255 bytes (long two-part Forever names, Cyrillic) are
   split at ", " instead of failing
+- Closing the window during an unfinished roll (countdown running or rolls not
+  announced yet) asks: [Announce] [Cancel] [Close]; option to turn it off
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude
