@@ -16,7 +16,6 @@ function RTC.GetLocale()
         ["MsgAnnounceItem"] = "%s won %s with a roll of %d (%d rolled).",
         ["MsgAnnounceTie"] = "Tie: %s rolled %d (%d rolled).",
         ["MsgAnnounceTieItem"] = "Tie for %s: %s rolled %d (%d rolled).",
-        ["MsgNotRolled"] = "The following people still need to roll or say '%s'",
         ["MsgCheat"] = "Ignoring %s's roll of %s (%s-%s).", -- (player, roll, max_roll, min_roll)
         ["MsgStart"] = "New roll starting now! Type '/roll' or '%s'",
         ["MsgStartMainAndOffSpecMode"] = "New roll starting now! Type '/roll' for MS, '/roll 99' for OS or '%s'",
@@ -154,11 +153,10 @@ function RTC.GetLocale()
         ["TxtNoRollsHint"] = "/roll or press Roll",
         ["MenuCountdown"] = "Start countdown",
         ["TipStopCountdown"] = "Stop countdown",
-        ["MenuAnnounceNotRolled"] = "Announce who has not rolled",
-        ["BtnMore"] = "More actions",
         ["TipClear"] = "Clear rolls",
         ["TipUndo"] = "Undo clear",
         ["TipRemoveRoll"] = "Remove this roll",
+        ["MsgConfirmRemoveRoll"] = "Remove the roll of %s (%s)? They will count as not rolled.",
         ["TipWaiting"] = "Click to remind them in chat.",
         ["MsgLootRollsNoClear"] = "The 'Loot Rolls' window is managed by the game on this client and can't be cleared.",
         ["AboutInfo"] = "Have you ever tried to roll the 'Onyxia Hide Backpack' in a raid? RTC collects all roll results and sorts them. Ever thought about whether you wanted something for your second-equip, but didn't know if somebody needed it? RTC can automatically open the Blizzard 'Loot rolls' window, where you can see immediately who needs or has greed.|nIn raid ever lost the overview, who got what? Again, RTC can help you. On request, it records all items, including a variable export function.",
@@ -182,6 +180,8 @@ function RTC.GetLocale()
 
     -- client language
     local clientLocale = RTC.Locales and RTC.Locales[GetLocale()]
+    -- keys translated for this client (nil = English client: everything is native)
+    RTC.ClientLocaleTable = clientLocale
     if clientLocale then
         for key, value in pairs(clientLocale) do L[key] = value end
     end

@@ -704,7 +704,13 @@ function RTC.OptionsInit()
     for key in pairs(locales) do table.insert(t, key) end
     table.sort(t)
     for _, key in ipairs(t) do
-        local col = L[key] ~= locales[key] and "|cffffffff" or "|cffff4040"
+        -- white: translated for this client (English clients: always);
+        -- blue: changed by you here; red: no translation for this language yet
+        local custom = RTC.DB.CustomLocales[key]
+        local translated = RTC.ClientLocaleTable == nil or
+                               RTC.ClientLocaleTable[key] ~= nil
+        local col = (custom and custom ~= "") and "|cff40c0ff" or
+                        (translated and "|cffffffff" or "|cffff4040")
         local txt = L[key .. "_org"] ~= "[" .. key .. "_org]" and
                         L[key .. "_org"] or L[key]
 
@@ -1963,7 +1969,21 @@ local function EnsureRowRemove(row)
     icon:SetSize(14, 14)
     icon:SetPoint("RIGHT", -4, 0)
     remove:SetScript("OnClick", function()
-        if row.data and row.data.ref then RTC.RemoveRoll(row.data.ref) end
+        local d = row.data
+        if not (d and d.ref) then return end
+        -- confirm: the slot sits on the checkmark and is easy to click by accident
+        if StaticPopupDialogs["RollTrackerForeverZ_RemoveRoll"] == nil then
+            StaticPopupDialogs["RollTrackerForeverZ_RemoveRoll"] = {
+                text = L["MsgConfirmRemoveRoll"],
+                button1 = YES,
+                button2 = NO,
+                OnAccept = function(_, ref) RTC.RemoveRoll(ref) end,
+                timeout = 0,
+                whileDead = 1,
+                hideOnEscape = 1,
+            }
+        end
+        StaticPopup_Show("RollTrackerForeverZ_RemoveRoll", d.name, tostring(d.roll), d.ref)
     end)
     remove:SetScript("OnEnter", function(self)
         SetRemoveHover(row, true)
