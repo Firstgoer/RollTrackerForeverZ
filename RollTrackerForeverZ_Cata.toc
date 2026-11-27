@@ -1,7 +1,7 @@
 ## Interface: 40400, 40401
 ## Title: RollTracker Forever Z
 ## Notes: Keeps tracks of /rolls, loot and more
-## Version: 2.2.0
+## Version: 2.3.0
 ## Author: GPI / Erytheia-Razorfen / Zolerii / Roadblock / Dosmod / Firstgoer / Claude
 ## DefaultState: enabled
 ## SavedVariables: RollTrackerForeverZDB,RollTrackerForeverZLoot

@@ -1,4 +1,4 @@
-2.2.0 - WoW: Forever support (Interface 16001, "Camelot")
+2.3.0 - WoW: Forever support (Interface 16001, "Camelot")
 - Addon renamed to RollTrackerForeverZ (folder, TOC files and SavedVariables)
 - New RollTrackerForeverZ_Camelot.toc for the WoW: Forever client
 - Removed the "unsupported game version" fallback TOC (Forever-only package)
