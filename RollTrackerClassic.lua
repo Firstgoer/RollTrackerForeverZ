@@ -183,7 +183,36 @@ function RTC.GetAutoChannel()
     return channel
 end
 
+-- Chat messages are limited to 255 bytes (Cyrillic letters take 2 bytes each).
+-- Long lists (e.g. "not rolled" with two-part Forever names) are split at ", "
+-- so every piece stays valid UTF-8; messages with links are never split.
+local CHAT_MAX_BYTES = 250
+local function SplitChatMessage(msg)
+    if #msg <= CHAT_MAX_BYTES or string.find(msg, "|H", 1, true) then
+        return {msg}
+    end
+    local parts, current = {}, ""
+    for piece in string.gmatch(msg .. ", ", "(.-), ") do
+        local candidate = current == "" and piece or (current .. ", " .. piece)
+        if #candidate > CHAT_MAX_BYTES and current ~= "" then
+            tinsert(parts, current)
+            current = piece
+        else
+            current = candidate
+        end
+    end
+    if current ~= "" then tinsert(parts, current) end
+    return parts
+end
+
 function RTC.AddChat(msg)
+    if msg ~= nil and msg ~= "" and #msg > CHAT_MAX_BYTES then
+        local parts = SplitChatMessage(msg)
+        if #parts > 1 then
+            for _, part in ipairs(parts) do RTC.AddChat(part) end
+            return
+        end
+    end
     if msg ~= nil and msg ~= "" and RTC.Sim then
         -- simulation: never send to real chat
         DEFAULT_CHAT_FRAME:AddMessage("|cff40c0ff[RTC sim]|r " .. msg)
@@ -2720,6 +2749,10 @@ local SIM_ROSTER = {
     {"Буль Буль", "PALADIN", "ПИВОЦЕРАПТОР / Пивовар"},
     {"Гримтуск", "WARRIOR", "ПИВОЦЕРАПТОР / Ветеран"},
     {"Ильнара", "PRIEST", ""},
+    {"Аэлинор Звездопад", "MAGE", "ПИВОЦЕРАПТОР / Пивовар"},
+    {"Thrandor Ironhammer", "WARRIOR", "Forever Raiders / Raider"},
+    {"Морвенна Тихая Вода", "DRUID", ""},
+    {"Kaelith Dawnbreaker", "HUNTER", "Forever Raiders / Trial"},
 }
 
 local simGeneration = 0
@@ -2733,8 +2766,7 @@ local function SimPlayerList(unsort)
     end
     local _, myClass = UnitClass("player")
     add(GetUnitName("player"), myClass, "")
-    for i = 1, RTC.Sim.size do
-        local p = SIM_ROSTER[i]
+    for _, p in ipairs(RTC.Sim.roster) do
         add(p[1], p[2], p[3])
     end
     if unsort then
@@ -2772,11 +2804,21 @@ function RTC.Simulate(arg)
         RTC.StopSimulation()
         return
     end
-    local size = math.max(2, math.min(tonumber(arg) or 9, #SIM_ROSTER))
+    local size = math.max(2, math.min(tonumber(arg) or 10, #SIM_ROSTER))
+
+    -- a random part of the roster (mixes short and two-part Forever names)
+    local pool = {}
+    for i, p in ipairs(SIM_ROSTER) do pool[i] = p end
+    for i = #pool, 2, -1 do
+        local j = math.random(i)
+        pool[i], pool[j] = pool[j], pool[i]
+    end
+    local roster = {}
+    for i = 1, size do roster[i] = pool[i] end
 
     simGeneration = simGeneration + 1
     local generation = simGeneration
-    RTC.Sim = {size = size}
+    RTC.Sim = {size = size, roster = roster}
     RTC.rollArray, RTC.rollNames = {}, {}
     RTC.rollUndoArray, RTC.rollUndoNames = {}, {}
     RTC.OptionsUpdate()
@@ -2786,7 +2828,7 @@ function RTC.Simulate(arg)
 
     -- decide who does what
     local plan, names = {}, {}
-    for i = 1, size do names[i] = SIM_ROSTER[i][1] end
+    for i = 1, size do names[i] = roster[i][1] end
     for i = #names, 2, -1 do
         local j = math.random(i)
         names[i], names[j] = names[j], names[i]

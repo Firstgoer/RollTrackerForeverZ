@@ -45,13 +45,15 @@
 - "Player notes" entry in the minimap button menu
 - Player notes: a note icon on the player's row (hover to read, click to edit)
   instead of a line in tooltips
-- /rtc sim [2-12|stop]: simulated raid for testing (fake roster with classes and
+- /rtc sim [2-16|stop]: simulated raid for testing (fake roster with classes and
   guild ranks, rolls arrive over a few seconds incl. re-roll, out-of-range roll,
   pass, possible tie and players who never roll; chat output stays local)
 - Fixes: LFG/LFR/battleground groups use instance chat (and its "pass"
   messages are recognised); "Pass" / " pass " count as passes; cross-realm
   roll results match group members; row names re-fit after resizing; joining
-  or leaving players update the waiting list; row tooltip uses SetUnit
+  or leaving players update the waiting list; row tooltip uses SetUnit;
+  chat messages over 255 bytes (long two-part Forever names, Cyrillic) are
+  split at ", " instead of failing
 - Russian translation (ruRU); "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude

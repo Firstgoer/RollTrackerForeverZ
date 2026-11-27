@@ -137,7 +137,7 @@ function RTC.GetLocale()
         ["SlashCountdown"] = "Countdown <value> in seconds",
         ["SlashNotes"] = "Print all notes",
         ["SlashClearNotes"] = "Clear all notes",
-        ["SlashSim"] = "Simulate a raid for testing; <value> = number of players (2-12) or 'stop'",
+        ["SlashSim"] = "Simulate a raid for testing; <value> = number of players (2-16) or 'stop'",
         ["MsgSimStarted"] = "Simulated raid with %d players started. Chat messages stay in your chat window. Stop with /rtc sim stop",
         ["MsgSimStopped"] = "Simulated raid stopped.",
         ["TxtRolled"] = "%d rolled",
