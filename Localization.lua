@@ -157,7 +157,7 @@ function RTC.GetLocale()
         ["TipClear"] = "Clear rolls",
         ["TipUndo"] = "Undo clear",
         ["TipRemoveRoll"] = "Remove this roll",
-        ["MsgConfirmRemoveRoll"] = "Remove the roll of %s (%s)? They will count as not rolled.",
+        ["MsgConfirmRemoveRoll"] = "Remove the roll of %s (%s)? This roll will not be counted in the results.",
         ["TipWaiting"] = "Click to remind them in chat.",
         ["MsgLootRollsNoClear"] = "The 'Loot Rolls' window is managed by the game on this client and can't be cleared.",
         ["AboutInfo"] = "Have you ever tried to roll the 'Onyxia Hide Backpack' in a raid? RTC collects all roll results and sorts them. Ever thought about whether you wanted something for your second-equip, but didn't know if somebody needed it? RTC can automatically open the Blizzard 'Loot rolls' window, where you can see immediately who needs or has greed.|nIn raid ever lost the overview, who got what? Again, RTC can help you. On request, it records all items, including a variable export function.",
