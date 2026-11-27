@@ -51,7 +51,7 @@ This command will announce a new roll. An item link can be given.
 This command will open the roll history.
 
 ### /rtc sim <value>
-Starts a simulated raid for testing the window (2-16 players, default 10). Nothing is sent to real chat. `/rtc sim stop` ends it.
+Starts a simulated raid for testing the window (2-16 players, default 10). Nothing is sent to real chat. `/rtc sim loot` fills the game's Loot Rolls window with test drops. `/rtc sim stop` ends either.
 
 ### /rtc loottracker <value>
 This command will enable or disable loot tracking.

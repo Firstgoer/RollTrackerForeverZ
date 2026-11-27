@@ -72,6 +72,8 @@
   for the top 5 and how many rolled), Shift-click to link the item, clear with
   confirmation; /rtc history and a minimap menu entry; simulation results are
   removed when the simulation stops
+- /rtc sim loot: fills the game's Loot Rolls window with a test boss and three
+  drops (won, still rolling, all passed); /rtc sim stop restores real data
 - luacheck lint on every push and before each release
 - Russian translation (ruRU), complete; "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload

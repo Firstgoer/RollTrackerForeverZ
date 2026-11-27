@@ -3314,7 +3314,107 @@ local function SimMessage(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cff40c0ff[RTC sim]|r " .. msg)
 end
 
+-- /rtc sim loot: fills the game's "Loot Rolls" window (GroupLootHistoryFrame)
+-- with a fake boss and three drops (won, still rolling, all passed) by
+-- temporarily replacing the C_LootHistory data functions. /rtc sim stop (or
+-- /reload) puts the real functions back.
+local SIM_ENCOUNTER_ID = 990001
+local realLootHistory
+
+-- items that surely exist on this client: what you are wearing (fallback: Hearthstone)
+local function SimLootLink(slot)
+    local link = GetInventoryItemLink("player", slot)
+    if link then return link end
+    local name = C_Item.GetItemNameByID and C_Item.GetItemNameByID(6948) or "Hearthstone"
+    return "|cffffffff|Hitem:6948::::::::60:::::|h[" .. name .. "]|h|r"
+end
+
+local function StopLootSimulation()
+    if not realLootHistory then return false end
+    for name, fn in pairs(realLootHistory) do C_LootHistory[name] = fn end
+    realLootHistory = nil
+    if GroupLootHistoryFrame and GroupLootHistoryFrame:IsShown() then GroupLootHistoryFrame:Hide() end
+    return true
+end
+
+local function SimulateLootHistory()
+    if not (C_LootHistory and GroupLootHistoryFrame and Enum.EncounterLootDropRollState) then
+        SimMessage(L["MsgSimLootUnsupported"])
+        return
+    end
+    local S = Enum.EncounterLootDropRollState
+    local now = C_LootHistory.GetLootHistoryTime()
+    local _, myClass = UnitClass("player")
+    local me = {name = GetUnitName("player"), class = myClass}
+    local others = {}
+    for i = 1, 6 do others[i] = {name = SIM_ROSTER[i][1], class = SIM_ROSTER[i][2]} end
+
+    local guidCounter = 0
+    local function roll(p, state, value, isWinner, isSelf)
+        guidCounter = guidCounter + 1
+        return {
+            playerName = p.name, playerClass = p.class,
+            playerGUID = string.format("Player-0-%08X", guidCounter),
+            isSelf = isSelf or false, state = state, roll = value, isWinner = isWinner or false,
+        }
+    end
+
+    -- 1) finished: need rolls, a winner, someone passed
+    local won = {
+        roll(others[1], S.NeedMainSpec, 87, true), roll(others[2], S.NeedMainSpec, 64),
+        roll(me, S.Greed, 92, false, true), roll(others[3], S.NeedOffSpec, 41),
+        roll(others[4], S.Pass),
+    }
+    -- 2) still rolling: two players haven't chosen yet, the timer is running
+    local rolling = {
+        roll(others[5], S.NeedMainSpec, 55), roll(others[2], S.Greed, 73),
+        roll(me, S.NoRoll, nil, false, true), roll(others[6], S.NoRoll),
+    }
+    -- 3) everybody passed
+    local passed = {roll(me, S.Pass, nil, false, true), roll(others[1], S.Pass), roll(others[3], S.Pass)}
+
+    local drops = {
+        {lootListKey = 1, itemHyperlink = SimLootLink(16), playerRollState = S.Greed,
+         winner = won[1], rollInfos = won, isTied = false, allPassed = false,
+         startTime = now - 30, duration = 60},
+        {lootListKey = 2, itemHyperlink = SimLootLink(1), playerRollState = S.NoRoll,
+         currentLeader = rolling[1], rollInfos = rolling, isTied = false, allPassed = false,
+         startTime = now, duration = 60},
+        {lootListKey = 3, itemHyperlink = SimLootLink(5), playerRollState = S.Pass,
+         rollInfos = passed, isTied = false, allPassed = true, startTime = now - 30, duration = 60},
+    }
+    local encounter = {encounterName = L["TxtSimEncounter"], encounterID = SIM_ENCOUNTER_ID,
+                       startTime = now, duration = 60}
+
+    if not realLootHistory then
+        realLootHistory = {}
+        for _, name in ipairs({"GetAllEncounterInfos", "GetInfoForEncounter",
+                               "GetSortedDropsForEncounter", "GetSortedInfoForDrop"}) do
+            realLootHistory[name] = C_LootHistory[name]
+        end
+    end
+    C_LootHistory.GetAllEncounterInfos = function() return {encounter} end
+    C_LootHistory.GetInfoForEncounter = function(id)
+        if id == SIM_ENCOUNTER_ID then return encounter end
+    end
+    C_LootHistory.GetSortedDropsForEncounter = function(id)
+        if id == SIM_ENCOUNTER_ID then return drops end
+        return {}
+    end
+    C_LootHistory.GetSortedInfoForDrop = function(id, key)
+        if id == SIM_ENCOUNTER_ID then return drops[key] end
+    end
+
+    if GroupLootHistoryFrame:IsShown() then GroupLootHistoryFrame:Hide() end
+    GroupLootHistoryFrame:Show()
+    SimMessage(L["MsgSimLootStarted"])
+end
+
 function RTC.StopSimulation(quiet)
+    if StopLootSimulation() and not RTC.Sim then
+        if not quiet then SimMessage(L["MsgSimStopped"]) end
+        return
+    end
     if not RTC.Sim then return end
     simGeneration = simGeneration + 1 -- cancels pending fake rolls
     RTC.Sim = nil
@@ -3334,6 +3434,10 @@ function RTC.Simulate(arg)
     arg = arg and string.lower(arg) or ""
     if arg == "stop" or arg == "off" then
         RTC.StopSimulation()
+        return
+    end
+    if arg == "loot" then
+        SimulateLootHistory()
         return
     end
     local size = math.max(2, math.min(tonumber(arg) or 10, #SIM_ROSTER))

@@ -36,6 +36,8 @@ globals = {
     "StaticPopupDialogs",
     "SlashCmdList",
     "LootHistoryFrame",
+    -- /rtc sim loot swaps its data functions temporarily
+    "C_LootHistory",
 }
 
 -- the GPI helper libraries are older shared code: only report real problems
