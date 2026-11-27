@@ -10,6 +10,7 @@ ignore:
   - README.md
   - .github
   - .gitignore
+  - .luacheckrc
   - Lib/LibStub/tests
   # classic flavors are not shipped in the WoW: Forever package
   - RollTrackerForeverZ_Vanilla.toc

@@ -152,6 +152,9 @@ function RTC.PopupMinimap(frame)
     end
     RTC.PopupDynamic:AddItem(L["BtnLootRolls"], false, RTC.LootHistoryShow)
     RTC.PopupDynamic:AddItem(L["HeaderNotes"], false, RTC.notes_list)
+    if RollTrackerClassicMainWindow.HistoryTabID then
+        RTC.PopupDynamic:AddItem(L["TabHistory"], false, RTC.ShowHistory)
+    end
     RTC.PopupDynamic:AddItem("", true)
     RTC.PopupDynamic:AddItem(L["BtnConfig"], false, RTC.Options.Open)
     RTC.PopupDynamic:AddItem(L["PanelAbout"], false, RTC.Options.Open, 4)
@@ -523,6 +526,7 @@ function RTC.OptionsUpdate()
         RTC.Tool.SelectTab(RollTrackerClassicMainWindow, 1)
         RTC.Tool.TabHide(RollTrackerClassicMainWindow)
     end
+    if RTC.LayoutForeverTabs then RTC.LayoutForeverTabs() end
     if RTC.PlaceForeverResizeHandle then RTC.PlaceForeverResizeHandle() end
 end
 
@@ -1001,6 +1005,7 @@ function RTC.Init()
         {"debug", "", {{"%", "", RTC.AddRoll}}},
         {"sim", "", {{"%", L["SlashSim"], RTC.Simulate}}},
         {"notes", L["SlashNotes"], RTC.notes_list},
+        {"history", L["SlashHistory"], function() RTC.ShowHistory() end},
         {"start", "", {{"%", L["SlashStart"], RTC.StartRoll}}}, {
             {"countdown", "count", "cd"}, "",
             {{"%", L["SlashCountdown"], RTC.StartCountdown}}
@@ -1034,6 +1039,12 @@ function RTC.Init()
                     RollTrackerForeverZLootFrame)
     RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabCSV"],
                     RollTrackerClassicCSVFrame)
+    if RTC.ForeverRollList and RTC.BuildHistoryTab then
+        RollTrackerClassicMainWindow.HistoryTabID =
+            RTC.Tool.AddTab(RollTrackerClassicMainWindow, L["TabHistory"], RTC.BuildHistoryTab())
+        RTC.Tool.TabOnSelect(RollTrackerClassicMainWindow,
+                             RollTrackerClassicMainWindow.HistoryTabID, RTC.UpdateHistoryList)
+    end
 
     RTC.PopupDynamic = RTC.Tool.CreatePopup(RTC.OptionsUpdate)
 
@@ -1157,6 +1168,16 @@ local function Event_Generic_CHAT_MSG(msg, name)
         RTC.MSGPREFIX_START then
         if RTC.DB.ClearOnStart then RTC.ClearRolls() end
         if RTC.DB.OpenOnStart then RTC.ShowWindow(1) end
+        RTC.AwaitItemUntil = GetTime() + 5
+    elseif RTC.AwaitItemUntil and GetTime() < RTC.AwaitItemUntil and
+        string.sub(msg, 1, string.len(RTC.MSGPREFIX)) == RTC.MSGPREFIX then
+        local link = string.match(msg, "(|c[^|]+|Hitem:.-|h.-|h|r)") or
+                         string.match(msg, "(|Hitem:.-|h.-|h)")
+        if link then
+            RTC.AwaitItemUntil = nil
+            RTC.CurrentItem = link
+            RTC.UpdateRollList()
+        end
     end
 end
 
@@ -1420,10 +1441,12 @@ function RTC.ClearRolls(doMsg)
         RTC.rollUndoArray = RTC.rollArray
         RTC.rollUndoNames = RTC.rollNames
         RTC.removedUndo = RTC.removedRolls or {}
+        RTC.itemUndo = RTC.CurrentItem
         RTC.rollArray = {}
         RTC.rollNames = {}
         RTC.removedRolls = {}
     end
+    RTC.CurrentItem = nil
     RTC.UpdateRollList()
 end
 
@@ -1438,6 +1461,8 @@ function RTC.UndoRolls(doMsg)
         RTC.rollArray = RTC.rollUndoArray
         RTC.rollNames = RTC.rollUndoNames
         RTC.removedRolls = RTC.removedUndo or {}
+        RTC.CurrentItem = RTC.itemUndo
+        RTC.itemUndo = nil
         RTC.rollUndoArray = {}
         RTC.rollUndoNames = {}
         RTC.removedUndo = {}
@@ -1475,15 +1500,18 @@ function RTC.StartRoll(...)
         msg = L["MsgStart"]
     end
     RTC.AddChat(RTC.MSGPREFIX_START .. string.format(msg, L["pass"]))
+    RTC.PendingItem = nil
     if item and item ~= "" and item ~= " " then
         RTC.AddChat(RTC.MSGPREFIX .. string.format(L["MsgNextItem"], item))
-
+        -- remembered for the window ("rolling for"), the announcement and history
+        RTC.CurrentItem = item
+        RTC.lastItem = item
         if RTC.DB.AutoCountdownWithItem then
-            RTC.lastItem = item
             RTC.StartCountdown()
         end
     end
     RTC.AddChat(L["MsgBar"])
+    RTC.UpdateRollList()
 end
 
 local function AnnounceListLine(position, roll)
@@ -1493,12 +1521,13 @@ local function AnnounceListLine(position, roll)
 end
 
 function RTC.RollAnnounce(numbers)
+    local alreadyAnnounced = RTC.RollAnnounced
     RTC.RollAnnounced = true
     local winNum = 0
     local winName = ""
     local max = -1
     local addPrefix = ""
-    local msg = ""
+    local msg
     local list = {}
     numbers = (tonumber(numbers) or RTC.DB.AnnounceList or 1)
     if numbers == 1 then numbers = 0 end
@@ -1593,6 +1622,10 @@ function RTC.RollAnnounce(numbers)
                                 max, rollers)
     else
         msg = RTC.MSGPREFIX .. L["MsgForcedAnnounce"]
+    end
+
+    if winNum >= 1 and not alreadyAnnounced and RTC.AddHistory then
+        RTC.AddHistory(winName, max, winNum > 1, rollers, RTC.lastItem or RTC.CurrentItem)
     end
 
     RTC.AddChat(msg)
@@ -1971,12 +2004,17 @@ local function EnsureRowRemove(row)
     remove:SetSize(22, 20) -- hit area covers the checkmark/info slot
     remove:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     local icon = remove:CreateTexture(nil, "ARTWORK")
+    remove.Icon = icon
     icon:SetAtlas("common-icon-undo")
     icon:SetSize(14, 14)
     icon:SetPoint("RIGHT", -4, 0)
     remove:SetScript("OnClick", function()
         local d = row.data
         if not (d and d.ref) then return end
+        if d.kind == "removed" then
+            RTC.RestoreRoll(d.ref)
+            return
+        end
         -- confirm: the slot sits on the checkmark and is easy to click by accident
         if StaticPopupDialogs["RollTrackerForeverZ_RemoveRoll"] == nil then
             StaticPopupDialogs["RollTrackerForeverZ_RemoveRoll"] = {
@@ -1994,7 +2032,8 @@ local function EnsureRowRemove(row)
     remove:SetScript("OnEnter", function(self)
         SetRemoveHover(row, true)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["TipRemoveRoll"])
+        GameTooltip:SetText(row.data and row.data.kind == "removed" and L["TipRestoreRoll"]
+                                or L["TipRemoveRoll"])
         GameTooltip:Show()
     end)
     remove:SetScript("OnLeave", function()
@@ -2050,7 +2089,13 @@ local function InitRollRow(row, d)
     EnsureRowRemove(row)
     EnsureRowNote(row)
     SetRemoveHover(row, false)
-    row.RemoveButton:SetShown(d.kind == "roll")
+    row.RemoveButton:SetShown(d.kind == "roll" or d.kind == "removed")
+    -- rollback (undo arrow) on rolls, restore (mirrored arrow) on canceled rolls
+    if d.kind == "removed" then
+        row.RemoveButton.Icon:SetTexCoord(1, 0, 0, 1)
+    else
+        row.RemoveButton.Icon:SetTexCoord(0, 1, 0, 1)
+    end
     row.NoteButton:Hide()
     row:SetScript("OnEnter", RowOnEnter)
     row:SetScript("OnLeave", RowOnLeave)
@@ -2310,6 +2355,7 @@ function RTC.UpdateForeverRollList()
     list.ClearTip = canUndo and L["TipUndo"] or L["TipClear"]
     clear.Icon:SetAtlas(canUndo and "common-icon-undo" or "common-search-clearbutton")
     clear:SetShown(#RTC.rollArray > 0 or #(RTC.removedRolls or {}) > 0 or canUndo)
+    RTC.UpdateItemBar()
     clear:ClearAllPoints()
     clear:SetPoint("RIGHT", list.Header, "RIGHT", 0, 0)
     list.Waiting:ClearAllPoints()
@@ -2362,7 +2408,6 @@ function RTC.RemoveRoll(ref)
 end
 
 local function BuildActionBar(list)
-    local helper = RollTrackerClassicFrameHelperButton
     local roll, off, pass = RollTrackerClassicFrameRollButton,
                             RollTrackerClassicFrameOffSpecButton,
                             RollTrackerClassicFramePassButton
@@ -2685,6 +2730,366 @@ local function BuildEmptyState(inset)
     return empty
 end
 
+-- ---------------------------------------------------------------------------
+-- Item bar: "rolling for [item]" above the list. Leaders can drag an item onto
+-- the window or Shift-click one (bags, loot, chat links) to prepare the next
+-- roll and start it with [Start roll].
+local function ItemTexture(link)
+    local itemID = link and tonumber(string.match(link, "item:(%d+)"))
+    if not itemID then return nil end
+    if C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(itemID) end
+    return select(5, C_Item.GetItemInfoInstant(itemID))
+end
+
+function RTC.SetPendingItem(link)
+    if not (link and string.find(link, "|Hitem:", 1, true)) then return end
+    RTC.PendingItem = link
+    RTC.ShowWindow(1)
+    RTC.UpdateRollList()
+end
+
+local function ItemFromCursor()
+    local kind, _, link = GetCursorInfo()
+    if kind == "item" and link then
+        ClearCursor()
+        RTC.SetPendingItem(link)
+        return true
+    end
+end
+
+function RTC.UpdateItemBar()
+    local list = RTC.ForeverRollList
+    local bar = list and list.ItemBar
+    if not bar then return end
+    local leader = RTC.ShowLeaderRow()
+    local link = RTC.PendingItem or RTC.CurrentItem
+    local pending = RTC.PendingItem ~= nil
+
+    if link then
+        bar.Icon:SetTexture(ItemTexture(link) or 134400)
+        bar.Icon:Show()
+        bar.Text:SetFontObject(GameFontHighlight)
+        bar.Text:SetText(link)
+        bar.Label:SetText(pending and L["TxtNextItem"] or L["TxtRollingFor"])
+    else
+        bar.Icon:Hide()
+        bar.Text:SetFontObject(GameFontDisableSmall)
+        bar.Text:SetText(L["TxtItemHint"])
+        bar.Label:SetText("")
+    end
+    bar.Start:SetText(L["BtnStartRoll"])
+    bar.Start:SetShown(pending and leader)
+    bar.Clear:SetShown(link ~= nil and leader)
+    bar.link = link
+
+    -- members only see the bar while an item is known
+    local show = link ~= nil or leader
+    if list.ItemBarShown ~= show then
+        list.ItemBarShown = show
+        bar:SetShown(show)
+        list.Inset:ClearAllPoints()
+        list.Inset:SetPoint("TOPLEFT", show and bar or RollTrackerClassicFrame,
+                            show and "BOTTOMLEFT" or "TOPLEFT", show and 0 or -2, show and -2 or 2)
+        list.Inset:SetPoint("RIGHT", RollTrackerClassicFrame, "RIGHT", 2, 0)
+        list.Inset:SetPoint("BOTTOM", RollTrackerClassicFrameRollButton, "TOP", 0, 4)
+    end
+end
+
+function RTC.BuildItemBar(list)
+    local bar = CreateFrame("Button", nil, RollTrackerClassicFrame)
+    bar:SetHeight(22)
+    bar:SetPoint("TOPLEFT", RollTrackerClassicFrame, "TOPLEFT", -2, 2)
+    bar:SetPoint("TOPRIGHT", RollTrackerClassicFrame, "TOPRIGHT", 2, 2)
+    bar:RegisterForClicks("LeftButtonUp")
+
+    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.25)
+
+    bar.Icon = bar:CreateTexture(nil, "ARTWORK")
+    bar.Icon:SetSize(18, 18)
+    bar.Icon:SetPoint("LEFT", 4, 0)
+    bar.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    bar.Label = bar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    bar.Label:SetPoint("LEFT", bar.Icon, "RIGHT", 4, 0)
+
+    bar.Clear = CreateFrame("Button", nil, bar)
+    bar.Clear:SetSize(16, 16)
+    bar.Clear:SetPoint("RIGHT", -4, 0)
+    bar.Clear:SetNormalAtlas("common-search-clearbutton")
+    bar.Clear:SetHighlightAtlas("common-search-clearbutton", "ADD")
+    bar.Clear:SetScript("OnClick", function()
+        if RTC.PendingItem then RTC.PendingItem = nil else RTC.CurrentItem = nil end
+        RTC.UpdateRollList()
+    end)
+    bar.Clear:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["TipItemClear"])
+        GameTooltip:Show()
+    end)
+    bar.Clear:SetScript("OnLeave", GameTooltip_Hide)
+
+    bar.Start = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    bar.Start:SetSize(70, 20)
+    bar.Start:SetPoint("RIGHT", bar.Clear, "LEFT", -4, 0)
+    bar.Start:SetScript("OnClick", function()
+        if RTC.PendingItem then RTC.StartRoll(RTC.PendingItem) end
+    end)
+
+    bar.Text = bar:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    bar.Text:SetPoint("LEFT", bar.Label, "RIGHT", 4, 0)
+    bar.Text:SetPoint("RIGHT", bar.Start, "LEFT", -4, 0)
+    bar.Text:SetJustifyH("LEFT")
+    bar.Text:SetWordWrap(false)
+
+    -- item tooltip / Shift-click to link it / drop an item here
+    bar:SetScript("OnEnter", function(self)
+        if self.link then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetHyperlink(self.link)
+            GameTooltip:Show()
+        end
+    end)
+    bar:SetScript("OnLeave", GameTooltip_Hide)
+    bar:SetScript("OnClick", function(self)
+        if ItemFromCursor() then return end
+        if self.link and IsModifiedClick() then HandleModifiedItemClick(self.link) end
+    end)
+    bar:SetScript("OnReceiveDrag", ItemFromCursor)
+
+    list.ItemBar = bar
+
+    -- Shift-click on any item while the window is open (and no chat box is
+    -- active) prepares it for the next roll
+    if HandleModifiedItemClick then
+        hooksecurefunc("HandleModifiedItemClick", function(link)
+            if not (link and RollTrackerClassicMainWindow:IsShown()) then return end
+            if not IsModifiedClick("CHATLINK") then return end
+            if ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow() then return end
+            if not RTC.ShowLeaderRow() then return end
+            RTC.SetPendingItem(link)
+        end)
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Restore a canceled roll
+function RTC.RestoreRoll(ref)
+    local removed = RTC.removedRolls or {}
+    for i, roll in ipairs(removed) do
+        if roll == ref then
+            tremove(removed, i)
+            tinsert(RTC.rollArray, roll)
+            RTC.rollNames[roll.Name] = (RTC.rollNames[roll.Name] or 0) + 1
+            RTC.RollAnnounced = false
+            break
+        end
+    end
+    RTC.UpdateRollList()
+end
+
+-- ---------------------------------------------------------------------------
+-- Roll history (saved, newest first in the History tab)
+local HISTORY_MAX = 50
+
+function RTC.AddHistory(winners, roll, tie, rollers, item)
+    if not RTC.DB then return end
+    RTC.DB.History = RTC.DB.History or {}
+    local top, classes = {}, {}
+    local _, partyName = RTC.GetPlayerList()
+    for i, r in ipairs(RTC.rollArray) do
+        if i > 5 then break end
+        tinsert(top, {r.Name, r.Roll, r.Low, r.High})
+    end
+    for name in string.gmatch(winners, "[^,]+") do
+        name = strtrim(name)
+        if partyName[name] then classes[name] = partyName[name].class end
+    end
+    tinsert(RTC.DB.History, {
+        t = time(), item = item, winners = winners, roll = roll, tie = tie or nil,
+        rollers = rollers, top = top, classes = classes, sim = RTC.Sim and true or nil,
+    })
+    while #RTC.DB.History > HISTORY_MAX do tremove(RTC.DB.History, 1) end
+    if RTC.UpdateHistoryList then RTC.UpdateHistoryList() end
+end
+
+local function HistoryRowOnEnter(row)
+    local h = row.data
+    if not h then return end
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    if h.item then
+        GameTooltip:SetHyperlink(h.item)
+        GameTooltip:AddLine(" ")
+    end
+    GameTooltip:AddLine(date("%Y-%m-%d %H:%M", h.t), 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(h.tie and L["TxtTie"] or L["TxtWinner"], h.winners .. " (" .. h.roll .. ")",
+                              1, 0.82, 0, 1, 1, 1)
+    for i, r in ipairs(h.top or {}) do
+        local range = (r[3] ~= 1 or r[4] ~= 100) and string.format(" (%d-%d)", r[3], r[4]) or ""
+        GameTooltip:AddDoubleLine(i .. ". " .. r[1], r[2] .. range, 1, 1, 1, 1, 1, 1)
+    end
+    GameTooltip:AddLine(string.format(L["TxtRolled"], h.rollers or 0), 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
+local function InitHistoryRow(row, h)
+    row.data = h
+    row.Stripe:SetShown(h.stripe == true)
+    row.Time:SetText(date("%H:%M", h.t))
+    if h.item then
+        row.Icon:SetTexture(ItemTexture(h.item) or 134400)
+        row.Icon:Show()
+        row.Item:SetText(h.item)
+    else
+        row.Icon:Hide()
+        row.Item:SetText(h.sim and ("|cff40c0ff" .. L["TxtSimTag"] .. "|r") or "-")
+    end
+    local text = h.winners
+    if h.tie then text = L["TxtTie"] .. ": " .. text end
+    local first = string.match(h.winners, "^[^,]+")
+    local class = first and h.classes and h.classes[strtrim(first)]
+    local c = class and RAID_CLASS_COLORS[class]
+    row.Winner:SetText(text)
+    if c then row.Winner:SetTextColor(c.r, c.g, c.b) else row.Winner:SetTextColor(1, 1, 1) end
+    row.Winner:SetWidth(math.min(row.Winner:GetUnboundedStringWidth() + 2,
+                                 math.max(40, (row:GetWidth() or 200) * 0.45)))
+    row.Roll:SetText(h.roll)
+    row:SetScript("OnEnter", HistoryRowOnEnter)
+    row:SetScript("OnLeave", GameTooltip_Hide)
+    row:SetScript("OnClick", function(self)
+        if self.data and self.data.item and IsModifiedClick() then
+            HandleModifiedItemClick(self.data.item)
+        end
+    end)
+end
+
+function RTC.UpdateHistoryList()
+    local hist = RTC.ForeverHistory
+    if not (hist and RTC.DB) then return end
+    local data = {}
+    local history = RTC.DB.History or {}
+    for i = #history, 1, -1 do
+        local h = history[i]
+        h.stripe = ((#history - i) % 2 == 1)
+        tinsert(data, h)
+    end
+    hist.ScrollBox:SetDataProvider(CreateDataProvider(data),
+                                   ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
+    hist.Count:SetText(string.format("%s (%d)", L["TabHistory"], #history))
+    hist.Clear:SetShown(#history > 0)
+    hist.Empty:SetText(L["TxtNoHistory"])
+    hist.Empty:SetShown(#history == 0)
+end
+
+function RTC.ShowHistory()
+    local id = RollTrackerClassicMainWindow.HistoryTabID
+    if id then RTC.ShowWindow(id) end
+end
+
+function RTC.BuildHistoryTab()
+    local frame = CreateFrame("Frame", "RollTrackerForeverZHistoryFrame", RollTrackerClassicMainWindow)
+    frame:SetPoint("TOPLEFT", 8, -30)
+    frame:SetPoint("BOTTOMRIGHT", -8, 8)
+    frame:Hide()
+
+    local inset = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
+    inset:SetPoint("TOPLEFT", -2, 2)
+    inset:SetPoint("BOTTOMRIGHT", 2, -2)
+
+    local header = CreateFrame("Frame", nil, inset)
+    header:SetHeight(18)
+    header:SetPoint("TOPLEFT", inset, "TOPLEFT", 8, -3)
+    header:SetPoint("TOPRIGHT", inset, "TOPRIGHT", -8, -3)
+    local divider = header:CreateTexture(nil, "ARTWORK")
+    divider:SetColorTexture(1, 1, 1, 0.12)
+    divider:SetHeight(1)
+    divider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", -4, 0)
+    divider:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 4, 0)
+
+    local count = header:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    count:SetPoint("LEFT")
+
+    local clear = CreateFrame("Button", nil, header)
+    clear:SetSize(16, 16)
+    clear:SetPoint("RIGHT")
+    clear:SetNormalAtlas("common-search-clearbutton")
+    clear:SetHighlightAtlas("common-search-clearbutton", "ADD")
+    clear:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["TipClearHistory"])
+        GameTooltip:Show()
+    end)
+    clear:SetScript("OnLeave", GameTooltip_Hide)
+    clear:SetScript("OnClick", function()
+        if StaticPopupDialogs["RollTrackerForeverZ_ClearHistory"] == nil then
+            StaticPopupDialogs["RollTrackerForeverZ_ClearHistory"] = {
+                text = L["MsgConfirmClearHistory"],
+                button1 = YES,
+                button2 = NO,
+                OnAccept = function()
+                    RTC.DB.History = {}
+                    RTC.UpdateHistoryList()
+                end,
+                timeout = 0,
+                whileDead = 1,
+                hideOnEscape = 1,
+            }
+        end
+        StaticPopup_Show("RollTrackerForeverZ_ClearHistory")
+    end)
+
+    local box = CreateFrame("Frame", nil, inset, "WowScrollBoxList")
+    box:SetPoint("TOPLEFT", header, "BOTTOMLEFT", -4, -2)
+    box:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -14, 4)
+    local bar = CreateFrame("EventFrame", nil, inset, "MinimalScrollBar")
+    bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 4, 0)
+    bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 4, 0)
+    local view = CreateScrollBoxListLinearView()
+    view:SetElementInitializer("RollTrackerForeverZHistoryRowTemplate", InitHistoryRow)
+    view:SetElementExtent(20)
+    ScrollUtil.InitScrollBoxListWithScrollBar(box, bar, view)
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then
+        ScrollUtil.AddManagedScrollBarVisibilityBehavior(box, bar)
+    end
+    box:HookScript("OnSizeChanged", function()
+        if frame:IsVisible() then RTC.UpdateHistoryList() end
+    end)
+
+    local empty = inset:CreateFontString(nil, "ARTWORK", "GameFontDisable")
+    empty:SetPoint("CENTER", 0, -8)
+
+    RTC.ForeverHistory = {Frame = frame, ScrollBox = box, Count = count,
+                          Clear = clear, Empty = empty}
+    return frame
+end
+
+-- Tabs on Forever: Rolls and History always; Loot and CSV with the loot tracker
+function RTC.LayoutForeverTabs()
+    local window = RollTrackerClassicMainWindow
+    if not (RTC.ForeverHistory and window.Tabs) then return end
+    local lootOn = RTC.DB.LootTracker.Enable
+    local prev
+    for i = 1, window.numTabs do
+        local tab = window.Tabs[i]
+        local show = (i == 1 or i == window.HistoryTabID) or lootOn
+        tab:SetShown(show)
+        if show then
+            tab:ClearAllPoints()
+            if prev then
+                tab:SetPoint("LEFT", prev, "RIGHT", 3, 0)
+            else
+                tab:SetPoint("TOPLEFT", window, "BOTTOMLEFT", 8, 2)
+            end
+            prev = tab
+        end
+    end
+    local selected = RTC.Tool.GetSelectedTab(window)
+    if not lootOn and selected ~= 1 and selected ~= window.HistoryTabID then
+        RTC.Tool.SelectTab(window, 1)
+    end
+end
+
 function RTC.BuildForeverLayout()
     if not (CreateScrollBoxListLinearView and ScrollUtil and
         ScrollUtil.InitScrollBoxListWithScrollBar and CreateDataProvider and
@@ -2758,6 +3163,7 @@ function RTC.BuildForeverLayout()
         end
     end)
     list.Empty = BuildEmptyState(inset)
+    RTC.BuildItemBar(list)
     BuildTimerBar(list)
     BuildResizeHandle(list)
     RTC.ForeverRollList = list
@@ -2906,6 +3312,12 @@ function RTC.StopSimulation(quiet)
     simGeneration = simGeneration + 1 -- cancels pending fake rolls
     RTC.Sim = nil
     RTC.StopCountdown()
+    -- simulated results don't belong in the real roll history
+    local history = RTC.DB.History or {}
+    for i = #history, 1, -1 do
+        if history[i].sim then tremove(history, i) end
+    end
+    if RTC.UpdateHistoryList then RTC.UpdateHistoryList() end
     RTC.ClearRolls()
     if not quiet then SimMessage(L["MsgSimStopped"]) end
     RTC.OptionsUpdate()

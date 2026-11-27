@@ -22,6 +22,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # never publish a build that fails the lint
+      - name: luacheck
+        uses: lunarmodules/luacheck@v1
+        with:
+          args: .
+
       - uses: BigWigsMods/packager@v2
         with:
           args: -g forever

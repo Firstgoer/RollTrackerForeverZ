@@ -47,6 +47,9 @@ This command will open the About window.
 ### /rtc start <value>
 This command will announce a new roll. An item link can be given.
 
+### /rtc history
+This command will open the roll history.
+
 ### /rtc sim <value>
 Starts a simulated raid for testing the window (2-16 players, default 10). Nothing is sent to real chat. `/rtc sim stop` ends it.
 

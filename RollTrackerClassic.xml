@@ -62,6 +62,55 @@
 		</Layers>
 	</Button>
 
+	<!-- WoW: Forever roll history row -->
+	<Button name="RollTrackerForeverZHistoryRowTemplate" virtual="true">
+		<Size x="200" y="20" />
+		<Layers>
+			<Layer level="BACKGROUND">
+				<Texture parentKey="Stripe" setAllPoints="true" hidden="true">
+					<Color r="1" g="1" b="1" a="0.04" />
+				</Texture>
+			</Layer>
+			<Layer level="ARTWORK">
+				<FontString parentKey="Time" inherits="GameFontDisableSmall" justifyH="LEFT">
+					<Size x="34" y="20" />
+					<Anchors>
+						<Anchor point="LEFT" x="4" y="0" />
+					</Anchors>
+				</FontString>
+				<Texture parentKey="Icon">
+					<Size x="16" y="16" />
+					<Anchors>
+						<Anchor point="LEFT" relativeKey="$parent.Time" relativePoint="RIGHT" x="2" y="0" />
+					</Anchors>
+					<TexCoords left="0.08" right="0.92" top="0.08" bottom="0.92" />
+				</Texture>
+				<FontString parentKey="Roll" inherits="GameFontNormalMed2" justifyH="RIGHT">
+					<Size x="30" y="20" />
+					<Anchors>
+						<Anchor point="RIGHT" x="-4" y="0" />
+					</Anchors>
+				</FontString>
+				<FontString parentKey="Winner" inherits="GameFontHighlightSmall" justifyH="RIGHT" wordwrap="false">
+					<Anchors>
+						<Anchor point="RIGHT" relativeKey="$parent.Roll" relativePoint="LEFT" x="-4" y="0" />
+					</Anchors>
+				</FontString>
+				<FontString parentKey="Item" inherits="GameFontHighlightSmall" justifyH="LEFT" wordwrap="false">
+					<Anchors>
+						<Anchor point="LEFT" relativeKey="$parent.Icon" relativePoint="RIGHT" x="4" y="0" />
+						<Anchor point="RIGHT" relativeKey="$parent.Winner" relativePoint="LEFT" x="-6" y="0" />
+					</Anchors>
+				</FontString>
+			</Layer>
+			<Layer level="HIGHLIGHT">
+				<Texture parentKey="Highlight" setAllPoints="true">
+					<Color r="1" g="1" b="1" a="0.08" />
+				</Texture>
+			</Layer>
+		</Layers>
+	</Button>
+
 	<Button name="RollTrackerClassic_MiniButton" inherits="UIPanelButtonTemplate" virtual="true">
 		<NormalFont style="GameFontNormalSmall" />
 		<HighlightFont style="GameFontHighlightSmall" />

@@ -64,6 +64,15 @@
   visible (dimmed); the list has "Rolled", "Not rolled" and "Canceled" sections
 - Options > Localization: white = translated (English clients: always), blue =
   your own text, red = no translation for this language yet
+- Item bar above the roll list: "Rolling for [item]" (raid members learn it
+  from the leader's announcement); leaders drag an item onto the window or
+  Shift-click one (bags, loot, chat links) to prepare it and press [Start roll]
+- Canceled rolls can be restored (mirrored arrow on hover)
+- History tab: the last 50 announced results (time, item, winner, roll; hover
+  for the top 5 and how many rolled), Shift-click to link the item, clear with
+  confirmation; /rtc history and a minimap menu entry; simulation results are
+  removed when the simulation stops
+- luacheck lint on every push and before each release
 - Russian translation (ruRU), complete; "pass" and "пас" are both recognised
 - Custom texts from Options > Localization are now actually applied after /reload
 - Forever port by Firstgoer, co-authored with Claude
