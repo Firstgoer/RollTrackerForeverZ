@@ -2253,7 +2253,7 @@ function RTC.UpdateForeverRollList()
             return okCount(e) and e.roll ~= 0 and
                        (rejectOut == false or (e.low == 1 and e.high == 100))
         end)
-        addSection(nil, rolls)
+        if #rolls > 0 then addSection(L["TxtRolledHeader"], rolls) end
     end
 
     local waiting = WaitingPlayers(party)

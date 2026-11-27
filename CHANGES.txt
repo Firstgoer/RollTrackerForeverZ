@@ -61,7 +61,7 @@
   one-line "Still waiting for 3: ... Type /roll or 'pass'", raid roll
   "won (7 of 20)", "No valid rolls." when announcing without a winner
 - Removing a single roll asks for confirmation first; removed rolls stay
-  visible (dimmed) in a "Removed" section at the bottom of the list
+  visible (dimmed); the list has "Rolled", "Not rolled" and "Canceled" sections
 - Options > Localization: white = translated (English clients: always), blue =
   your own text, red = no translation for this language yet
 - Russian translation (ruRU), complete; "pass" and "пас" are both recognised
